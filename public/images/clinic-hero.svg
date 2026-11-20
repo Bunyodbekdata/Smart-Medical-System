@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="800" y2="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#EEF4FF"/>
+      <stop offset="55%" stop-color="#F8FAFF"/>
+      <stop offset="100%" stop-color="#E8EEFF"/>
+    </linearGradient>
+    <linearGradient id="wallGrad" x1="160" y1="40" x2="640" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F1F5F9"/>
+    </linearGradient>
+    <linearGradient id="deskGrad" x1="200" y1="270" x2="640" y2="410" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E2E8F0"/>
+    </linearGradient>
+    <linearGradient id="blueAccent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+    <linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#DBEAFE" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#EFF6FF" stop-opacity="0.25"/>
+    </linearGradient>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#1E3A8A" flood-opacity="0.1"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="520" rx="28" fill="url(#bgGrad)"/>
+  <!-- Floor perspective -->
+  <path d="M0 365 L800 365 L800 520 L0 520 Z" fill="#F1F5F9"/>
+  <path d="M0 365 L800 365" stroke="#CBD5E1" stroke-width="1.5"/>
+  <ellipse cx="430" cy="435" rx="280" ry="38" fill="#CBD5E1" opacity="0.35"/>
+
+  <!-- Glass partition & hallway -->
+  <rect x="40" y="55" width="160" height="310" rx="8" fill="url(#glassGrad)" stroke="#BFDBFE" stroke-width="2"/>
+  <line x1="120" y1="55" x2="120" y2="365" stroke="#BFDBFE" stroke-width="1.5"/>
+  <rect x="55" y="135" width="48" height="70" rx="6" fill="#FFFFFF" opacity="0.7"/>
+  <rect x="135" y="135" width="48" height="70" rx="6" fill="#FFFFFF" opacity="0.7"/>
+
+  <!-- Feature reception backdrop wall -->
+  <rect x="220" y="45" width="520" height="320" rx="16" fill="url(#wallGrad)" stroke="#E2E8F0" stroke-width="2"/>
+  <!-- Architectural vertical slats -->
+  <g opacity="0.45">
+    <rect x="242" y="65" width="8" height="280" rx="4" fill="#DBEAFE"/>
+    <rect x="260" y="65" width="8" height="280" rx="4" fill="#DBEAFE"/>
+    <rect x="278" y="65" width="8" height="280" rx="4" fill="#DBEAFE"/>
+    <rect x="688" y="65" width="8" height="280" rx="4" fill="#DBEAFE"/>
+    <rect x="706" y="65" width="8" height="280" rx="4" fill="#DBEAFE"/>
+  </g>
+
+  <!-- Medical cross & brand emblem on clinic wall -->
+  <g transform="translate(405, 118)">
+    <rect x="0" y="0" width="46" height="46" rx="13" fill="url(#blueAccent)" filter="url(#softShadow)"/>
+    <rect x="19" y="11" width="8" height="24" rx="3" fill="#FFFFFF"/>
+    <rect x="11" y="19" width="24" height="8" rx="3" fill="#FFFFFF"/>
+    <text x="60" y="31" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="700" fill="#0F172A">MedClinic</text>
+  </g>
+
+  <!-- Indoor medical clinic plant (left) -->
+  <g transform="translate(175, 250)">
+    <ellipse cx="32" cy="112" rx="22" ry="6" fill="#94A3B8" opacity="0.35"/>
+    <path d="M16 74 L48 74 L43 110 L21 110 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+    <path d="M32 74 C22 50, 8 44, 6 24 C20 30, 30 46, 32 74 Z" fill="#34D399"/>
+    <path d="M32 74 C44 48, 58 42, 60 22 C44 28, 35 46, 32 74 Z" fill="#10B981"/>
+    <path d="M32 74 C30 44, 30 22, 34 6 C39 24, 38 48, 32 74 Z" fill="#059669"/>
+  </g>
+
+  <!-- Monitors behind desk -->
+  <rect x="372" y="220" width="66" height="44" rx="6" fill="#1E293B"/>
+  <rect x="377" y="225" width="56" height="34" rx="3" fill="#EFF6FF"/>
+  <rect x="383" y="232" width="26" height="5" rx="2" fill="#2563EB"/>
+  <rect x="383" y="241" width="40" height="4" rx="2" fill="#93C5FD"/>
+  <rect x="520" y="220" width="66" height="44" rx="6" fill="#1E293B"/>
+  <rect x="525" y="225" width="56" height="34" rx="3" fill="#EFF6FF"/>
+  <rect x="531" y="232" width="32" height="5" rx="2" fill="#4F46E5"/>
+  <rect x="531" y="241" width="38" height="4" rx="2" fill="#A5B4FC"/>
+
+  <!-- Staff figure 1 -->
+  <g transform="translate(384, 178)">
+    <circle cx="22" cy="22" r="15" fill="#FDE68A" opacity="0.25"/>
+    <circle cx="22" cy="22" r="14" fill="#F1C27D"/>
+    <path d="M10 18 C12 7, 32 7, 34 18 C30 13, 14 13, 10 18 Z" fill="#1E293B"/>
+    <path d="M3 86 C3 58, 12 44, 22 44 C32 44, 41 58, 41 86 Z" fill="#2563EB"/>
+    <path d="M14 44 L22 58 L30 44" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Staff figure 2 -->
+  <g transform="translate(532, 182)">
+    <circle cx="22" cy="22" r="14" fill="#F1C27D"/>
+    <path d="M9 20 C9 6, 35 6, 35 20 C31 14, 13 14, 9 20 Z" fill="#334155"/>
+    <path d="M3 84 C3 56, 12 44, 22 44 C32 44, 41 56, 41 84 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>
+    <path d="M15 44 L22 58 L29 44" fill="#4F46E5"/>
+  </g>
+
+  <!-- Reception Desk -->
+  <g filter="url(#softShadow)">
+    <path d="M250 282 C250 272, 258 265, 268 265 L678 265 C688 265, 696 272, 696 282 L696 385 C696 393, 689 400, 680 400 L266 400 C257 400, 250 393, 250 385 Z" fill="url(#deskGrad)" stroke="#CBD5E1" stroke-width="2"/>
+    <rect x="242" y="260" width="462" height="14" rx="7" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+    <!-- LED strip -->
+    <rect x="275" y="294" width="396" height="6" rx="3" fill="url(#blueAccent)" opacity="0.85"/>
+    <!-- Front medical badge on desk -->
+    <rect x="448" y="325" width="50" height="50" rx="14" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1.5"/>
+    <rect x="469" y="337" width="8" height="26" rx="3" fill="#2563EB"/>
+    <rect x="460" y="346" width="26" height="8" rx="3" fill="#2563EB"/>
+  </g>
+
+  <!-- Waiting lounge chairs (right foreground) -->
+  <g transform="translate(590, 385)">
+    <rect x="0" y="24" width="66" height="32" rx="12" fill="#E0E7FF" stroke="#A5B4FC" stroke-width="2"/>
+    <rect x="8" y="10" width="50" height="24" rx="10" fill="#4F46E5"/>
+    <line x1="14" y1="56" x2="14" y2="74" stroke="#64748B" stroke-width="4" stroke-linecap="round"/>
+    <line x1="52" y1="56" x2="52" y2="74" stroke="#64748B" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(675, 385)">
+    <rect x="0" y="24" width="66" height="32" rx="12" fill="#E0E7FF" stroke="#A5B4FC" stroke-width="2"/>
+    <rect x="8" y="10" width="50" height="24" rx="10" fill="#2563EB"/>
+    <line x1="14" y1="56" x2="14" y2="74" stroke="#64748B" stroke-width="4" stroke-linecap="round"/>
+    <line x1="52" y1="56" x2="52" y2="74" stroke="#64748B" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <!-- Floating live queue ticket card accent -->
+  <g transform="translate(46, 304)" filter="url(#softShadow)">
+    <rect x="0" y="0" width="184" height="106" rx="16" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+    <circle cx="24" cy="24" r="8" fill="#10B981" opacity="0.2"/>
+    <circle cx="24" cy="24" r="4" fill="#10B981"/>
+    <text x="38" y="28" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#0F172A">Jonli navbat faol</text>
+    <text x="18" y="58" font-family="system-ui, sans-serif" font-size="22" font-weight="800" fill="#2563EB">A-025</text>
+    <rect x="18" y="72" width="148" height="18" rx="9" fill="#EFF6FF"/>
+    <text x="30" y="85" font-family="system-ui, sans-serif" font-size="10" font-weight="600" fill="#1D4ED8">Onlayn kuzatuv tizimi</text>
+  </g>
+</svg>
