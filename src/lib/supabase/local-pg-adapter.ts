@@ -1,8 +1,20 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { PGlite } from "@electric-sql/pglite";
+import { Pool, types } from "pg";
 import { cookies } from "next/headers";
+import { getPostgresUrl } from "./env";
+
+// Return PostgreSQL DATE (OID 1082) as exact 'YYYY-MM-DD' string without timezone drift
+types.setTypeParser(1082, (val: string) => val);
+
+export interface PgExecutor {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: unknown[]
+  ): Promise<{ rows: T[] }>;
+  exec(sql: string): Promise<unknown>;
+}
 
 export const LOCAL_SESSION_COOKIE = "medclinic_local_session";
 
@@ -245,6 +257,7 @@ function verifyPassword(password: string, storedHash: string): boolean {
 
 function getSigningSecret(): string {
   return (
+    process.env.AUTH_SECRET ||
     process.env.LOCAL_AUTH_SECRET ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     "medclinic-local-pg-session-key"
@@ -280,10 +293,192 @@ export function verifySignedSessionToken(token: string | undefined | null): stri
 }
 
 declare global {
-  var __medclinicLocalPgPromise: Promise<PGlite> | undefined;
+  var __medclinicLocalPgPromise: Promise<PgExecutor> | undefined;
+  var __medclinicPgPool: Pool | undefined;
 }
 
-async function initializeLocalPg(): Promise<PGlite> {
+async function provisionConfiguredStaffAccounts(db: PgExecutor) {
+  const superAdminPass =
+    process.env.SUPER_ADMIN_PASSWORD || process.env.LOCAL_SUPER_ADMIN_PASSWORD;
+  const adminPass = process.env.ADMIN_PASSWORD || process.env.LOCAL_ADMIN_PASSWORD;
+  const docPass = process.env.DOCTOR_PASSWORD || process.env.LOCAL_DOCTOR_PASSWORD;
+
+  if (superAdminPass) {
+    const saUsername = (
+      process.env.SUPER_ADMIN_USERNAME ||
+      process.env.LOCAL_SUPER_ADMIN_USERNAME ||
+      "superadmin"
+    ).toLowerCase();
+    const saEmail = (
+      process.env.SUPER_ADMIN_EMAIL ||
+      process.env.LOCAL_SUPER_ADMIN_EMAIL ||
+      "rahbar@medclinic.uz"
+    ).toLowerCase();
+    await db.query(
+      `INSERT INTO auth.users (id, email, password_hash) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+      [SUPER_ADMIN_USER_ID, saEmail, hashPassword(superAdminPass)]
+    );
+    await db.query(
+      `INSERT INTO public.user_profiles (id, clinic_id, role, full_name, username, email, phone, is_active)
+       VALUES ($1, $2, 'super_admin', 'Dilshod Karimov', $3, $4, '+998 90 100 00 01', true)
+       ON CONFLICT (id) DO NOTHING`,
+      [SUPER_ADMIN_USER_ID, CLINIC_ID, saUsername, saEmail]
+    );
+  }
+
+  if (adminPass) {
+    const admUsername = (
+      process.env.ADMIN_USERNAME ||
+      process.env.LOCAL_ADMIN_USERNAME ||
+      "admin"
+    ).toLowerCase();
+    const admEmail = (
+      process.env.ADMIN_EMAIL ||
+      process.env.LOCAL_ADMIN_EMAIL ||
+      "admin@medclinic.uz"
+    ).toLowerCase();
+    await db.query(
+      `INSERT INTO auth.users (id, email, password_hash) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+      [ADMIN_USER_ID, admEmail, hashPassword(adminPass)]
+    );
+    await db.query(
+      `INSERT INTO public.user_profiles (id, clinic_id, role, full_name, username, email, phone, is_active)
+       VALUES ($1, $2, 'admin', 'Aziza Rustamova', $3, $4, '+998 90 100 00 02', true)
+       ON CONFLICT (id) DO NOTHING`,
+      [ADMIN_USER_ID, CLINIC_ID, admUsername, admEmail]
+    );
+  }
+
+  if (docPass) {
+    const docUsername = (
+      process.env.DOCTOR_USERNAME ||
+      process.env.LOCAL_DOCTOR_USERNAME ||
+      "dr_ali"
+    ).toLowerCase();
+    const docEmail = (
+      process.env.DOCTOR_EMAIL ||
+      process.env.LOCAL_DOCTOR_EMAIL ||
+      "ali@medclinic.uz"
+    ).toLowerCase();
+    await db.query(
+      `INSERT INTO auth.users (id, email, password_hash) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+      [DOC_ALI_USER_ID, docEmail, hashPassword(docPass)]
+    );
+    await db.query(
+      `INSERT INTO public.user_profiles (id, clinic_id, role, full_name, username, email, phone, is_active)
+       VALUES ($1, $2, 'doctor', 'Dr. Ali Valiyev', $3, $4, '+998 90 100 00 03', true)
+       ON CONFLICT (id) DO NOTHING`,
+      [DOC_ALI_USER_ID, CLINIC_ID, docUsername, docEmail]
+    );
+    await db.query(
+      `UPDATE public.doctors SET user_id = $1 WHERE id = $2 AND user_id IS NULL`,
+      [DOC_ALI_USER_ID, DOC_ALI_ID]
+    );
+
+    await db.query(
+      `INSERT INTO auth.users (id, email, password_hash) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+      [DOC_MADINA_USER_ID, "madina@medclinic.uz", hashPassword(docPass)]
+    );
+    await db.query(
+      `INSERT INTO public.user_profiles (id, clinic_id, role, full_name, username, email, phone, is_active)
+       VALUES ($1, $2, 'doctor', 'Dr. Madina Karimova', 'dr_madina', 'madina@medclinic.uz', '+998 90 100 00 04', true)
+       ON CONFLICT (id) DO NOTHING`,
+      [DOC_MADINA_USER_ID, CLINIC_ID]
+    );
+    await db.query(
+      `UPDATE public.doctors SET user_id = $1 WHERE id = $2 AND user_id IS NULL`,
+      [DOC_MADINA_USER_ID, DOC_MADINA_ID]
+    );
+  }
+}
+
+async function initializeDirectPostgres(connectionString: string): Promise<PgExecutor> {
+  const isLocalHost =
+    connectionString.includes("localhost") || connectionString.includes("127.0.0.1");
+
+  if (!globalThis.__medclinicPgPool) {
+    globalThis.__medclinicPgPool = new Pool({
+      connectionString,
+      max: 10,
+      idleTimeoutMillis: 20_000,
+      connectionTimeoutMillis: 15_000,
+      ssl: isLocalHost ? false : { rejectUnauthorized: false },
+    });
+  }
+
+  const pool = globalThis.__medclinicPgPool;
+  const executor: PgExecutor = {
+    async query<T = Record<string, unknown>>(sql: string, params?: unknown[]) {
+      const res = await pool.query(sql, params);
+      return { rows: res.rows as T[] };
+    },
+    async exec(sql: string) {
+      await pool.query(sql);
+    },
+  };
+
+  // Fast check: skip heavy migrations if schema is already initialized on Neon
+  const check = await executor.query<{ tbl: string | null }>(
+    `SELECT to_regclass('public.clinics') AS tbl`
+  );
+
+  if (!check.rows[0]?.tbl) {
+    await executor.exec(`
+      CREATE EXTENSION IF NOT EXISTS pgcrypto;
+      CREATE SCHEMA IF NOT EXISTS auth;
+      CREATE TABLE IF NOT EXISTS auth.users (
+        id uuid PRIMARY KEY,
+        email text UNIQUE NOT NULL,
+        password_hash text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE OR REPLACE FUNCTION auth.uid()
+      RETURNS uuid
+      LANGUAGE sql
+      STABLE
+      AS $$
+        SELECT NULLIF(current_setting('app.current_user_id', true), '')::uuid;
+      $$;
+      CREATE OR REPLACE FUNCTION auth.role()
+      RETURNS text
+      LANGUAGE sql
+      STABLE
+      AS $$
+        SELECT COALESCE(NULLIF(current_setting('app.test_role', true), ''), 'service_role');
+      $$;
+    `);
+
+    const migrations = [
+      "migrations/0001_initial_schema.sql",
+      "migrations/0002_rpc_and_triggers.sql",
+      "seed.sql",
+    ];
+
+    for (const rel of migrations) {
+      const fullPath = path.join(process.cwd(), "supabase", rel);
+      const sql = fs.readFileSync(fullPath, "utf8");
+      await executor.exec(sql);
+    }
+  }
+
+  // Ensure initial staff accounts exist if configured via env vars and no users yet
+  const usersCount = await executor.query<{ cnt: string }>(
+    `SELECT count(*)::text AS cnt FROM auth.users`
+  );
+  if (Number(usersCount.rows[0]?.cnt ?? 0) === 0) {
+    await provisionConfiguredStaffAccounts(executor);
+  }
+
+  return executor;
+}
+
+async function initializeLocalPg(): Promise<PgExecutor> {
+  const postgresUrl = getPostgresUrl();
+  if (postgresUrl) {
+    return initializeDirectPostgres(postgresUrl);
+  }
+
+  const { PGlite } = await import("@electric-sql/pglite");
   const db = await PGlite.create();
 
   await db.exec(`
@@ -344,84 +539,22 @@ async function initializeLocalPg(): Promise<PGlite> {
     await db.exec(sql);
   }
 
-  // Provision initial staff accounts from environment variables if configured
-  const superAdminPass = process.env.LOCAL_SUPER_ADMIN_PASSWORD;
-  const adminPass = process.env.LOCAL_ADMIN_PASSWORD;
-  const docPass = process.env.LOCAL_DOCTOR_PASSWORD;
-
-  if (superAdminPass) {
-    const saUsername = (process.env.LOCAL_SUPER_ADMIN_USERNAME || "superadmin").toLowerCase();
-    const saEmail = (process.env.LOCAL_SUPER_ADMIN_EMAIL || "rahbar@medclinic.uz").toLowerCase();
-    await db.query(
-      `INSERT INTO auth.users (id, email, password_hash) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
-      [SUPER_ADMIN_USER_ID, saEmail, hashPassword(superAdminPass)]
-    );
-    await db.query(
-      `INSERT INTO public.user_profiles (id, clinic_id, role, full_name, username, email, phone, is_active)
-       VALUES ($1, $2, 'super_admin', 'Dilshod Karimov', $3, $4, '+998 90 100 00 01', true)
-       ON CONFLICT (id) DO NOTHING`,
-      [SUPER_ADMIN_USER_ID, CLINIC_ID, saUsername, saEmail]
-    );
-  }
-
-  if (adminPass) {
-    const admUsername = (process.env.LOCAL_ADMIN_USERNAME || "admin").toLowerCase();
-    const admEmail = (process.env.LOCAL_ADMIN_EMAIL || "admin@medclinic.uz").toLowerCase();
-    await db.query(
-      `INSERT INTO auth.users (id, email, password_hash) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
-      [ADMIN_USER_ID, admEmail, hashPassword(adminPass)]
-    );
-    await db.query(
-      `INSERT INTO public.user_profiles (id, clinic_id, role, full_name, username, email, phone, is_active)
-       VALUES ($1, $2, 'admin', 'Aziza Rustamova', $3, $4, '+998 90 100 00 02', true)
-       ON CONFLICT (id) DO NOTHING`,
-      [ADMIN_USER_ID, CLINIC_ID, admUsername, admEmail]
-    );
-  }
-
-  if (docPass) {
-    const docUsername = (process.env.LOCAL_DOCTOR_USERNAME || "dr_ali").toLowerCase();
-    const docEmail = (process.env.LOCAL_DOCTOR_EMAIL || "ali@medclinic.uz").toLowerCase();
-    await db.query(
-      `INSERT INTO auth.users (id, email, password_hash) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
-      [DOC_ALI_USER_ID, docEmail, hashPassword(docPass)]
-    );
-    await db.query(
-      `INSERT INTO public.user_profiles (id, clinic_id, role, full_name, username, email, phone, is_active)
-       VALUES ($1, $2, 'doctor', 'Dr. Ali Valiyev', $3, $4, '+998 90 100 00 03', true)
-       ON CONFLICT (id) DO NOTHING`,
-      [DOC_ALI_USER_ID, CLINIC_ID, docUsername, docEmail]
-    );
-    await db.query(`UPDATE public.doctors SET user_id = $1 WHERE id = $2`, [
-      DOC_ALI_USER_ID,
-      DOC_ALI_ID,
-    ]);
-
-    await db.query(
-      `INSERT INTO auth.users (id, email, password_hash) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
-      [DOC_MADINA_USER_ID, "madina@medclinic.uz", hashPassword(docPass)]
-    );
-    await db.query(
-      `INSERT INTO public.user_profiles (id, clinic_id, role, full_name, username, email, phone, is_active)
-       VALUES ($1, $2, 'doctor', 'Dr. Madina Karimova', 'dr_madina', 'madina@medclinic.uz', '+998 90 100 00 04', true)
-       ON CONFLICT (id) DO NOTHING`,
-      [DOC_MADINA_USER_ID, CLINIC_ID]
-    );
-    await db.query(`UPDATE public.doctors SET user_id = $1 WHERE id = $2`, [
-      DOC_MADINA_USER_ID,
-      DOC_MADINA_ID,
-    ]);
-  }
+  await provisionConfiguredStaffAccounts(db);
 
   // Seed initial live operational queue/payment/consultation records using real PostgreSQL RPCs
-  if (superAdminPass && adminPass && docPass) {
+  const hasAllLocalPasswords = Boolean(
+    (process.env.SUPER_ADMIN_PASSWORD || process.env.LOCAL_SUPER_ADMIN_PASSWORD) &&
+      (process.env.ADMIN_PASSWORD || process.env.LOCAL_ADMIN_PASSWORD) &&
+      (process.env.DOCTOR_PASSWORD || process.env.LOCAL_DOCTOR_PASSWORD)
+  );
+  if (hasAllLocalPasswords) {
     await seedInitialOperationalRecords(db);
   }
 
   return db;
 }
 
-async function seedInitialOperationalRecords(db: PGlite) {
+async function seedInitialOperationalRecords(db: PgExecutor) {
   const existing = await db.query<{ cnt: string }>(
     `SELECT count(*)::text AS cnt FROM public.queue_tickets WHERE clinic_id = $1`,
     [CLINIC_ID]
@@ -566,9 +699,12 @@ async function seedInitialOperationalRecords(db: PGlite) {
   );
 }
 
-export async function getLocalPg(): Promise<PGlite> {
+export async function getLocalPg(): Promise<PgExecutor> {
   if (!globalThis.__medclinicLocalPgPromise) {
-    globalThis.__medclinicLocalPgPromise = initializeLocalPg();
+    globalThis.__medclinicLocalPgPromise = initializeLocalPg().catch((err) => {
+      globalThis.__medclinicLocalPgPromise = undefined;
+      throw err;
+    });
   }
   return globalThis.__medclinicLocalPgPromise;
 }
@@ -640,7 +776,7 @@ function parseRelationToken(token: string): ParsedRelationSpec | null {
 }
 
 async function hydrateRelationsForRows(
-  db: PGlite,
+  db: PgExecutor,
   sourceTable: string,
   rows: Record<string, unknown>[],
   selectStr: string
@@ -1490,6 +1626,7 @@ export async function createLocalServerSupabaseClient() {
           try {
             cookieStore.set(LOCAL_SESSION_COOKIE, token, {
               httpOnly: true,
+              secure: process.env.NODE_ENV === "production",
               sameSite: "lax",
               path: "/",
               maxAge: 7 * 24 * 60 * 60,

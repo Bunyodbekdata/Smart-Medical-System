@@ -9,7 +9,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@electric-sql/pglite"],
+  serverExternalPackages: ["@electric-sql/pglite", "pg"],
+  outputFileTracingIncludes: {
+    "/**": ["./supabase/migrations/**", "./supabase/seed.sql"],
+  },
   images: {
     dangerouslyAllowSVG: true,
     contentDispositionType: "attachment",

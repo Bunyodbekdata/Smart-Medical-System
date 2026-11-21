@@ -5,7 +5,7 @@ import {
   getPublicSupabaseEnv,
   getServiceSupabaseEnv,
   isCloudSupabaseConfigured,
-  isLocalPgEnabled,
+  isPgAdapterMode,
 } from "./env";
 import {
   createLocalServerSupabaseClient,
@@ -13,7 +13,7 @@ import {
 } from "./local-pg-adapter";
 
 export async function createServerSupabaseClient(): Promise<SupabaseClient> {
-  if (!isCloudSupabaseConfigured() && isLocalPgEnabled()) {
+  if (!isCloudSupabaseConfigured() && isPgAdapterMode()) {
     return (await createLocalServerSupabaseClient()) as unknown as SupabaseClient;
   }
 
@@ -42,7 +42,7 @@ export function createServiceRoleClient(): SupabaseClient {
   if (typeof window !== "undefined") {
     throw new Error("createServiceRoleClient faqat server tomonida ishlatilishi mumkin");
   }
-  if (!isCloudSupabaseConfigured() && isLocalPgEnabled()) {
+  if (!isCloudSupabaseConfigured() && isPgAdapterMode()) {
     return createLocalServiceRoleClient() as unknown as SupabaseClient;
   }
   const { url, serviceKey } = getServiceSupabaseEnv();

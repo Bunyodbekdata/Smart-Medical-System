@@ -11,7 +11,10 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/super-admin");
 
   if (!url || !anonKey) {
-    if (process.env.MEDCLINIC_LOCAL_PG === "true" && isProtectedStaffPath) {
+    const usesPgAdapter =
+      Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL) ||
+      process.env.MEDCLINIC_LOCAL_PG === "true";
+    if (usesPgAdapter && isProtectedStaffPath) {
       const localCookie = request.cookies.get("medclinic_local_session")?.value;
       if (!localCookie) {
         const loginUrl = new URL("/staff/login", request.url);

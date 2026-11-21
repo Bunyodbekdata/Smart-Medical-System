@@ -5,24 +5,45 @@ export function isCloudSupabaseConfigured(): boolean {
   );
 }
 
+export function getPostgresUrl(): string | null {
+  const url = (process.env.DATABASE_URL || process.env.POSTGRES_URL || "").trim();
+  return url || null;
+}
+
+export function isDirectPgConfigured(): boolean {
+  return !isCloudSupabaseConfigured() && Boolean(getPostgresUrl());
+}
+
 export function isLocalPgEnabled(): boolean {
   return (
     !isCloudSupabaseConfigured() &&
+    !isDirectPgConfigured() &&
     process.env.MEDCLINIC_LOCAL_PG === "true"
   );
 }
 
+export function isPgAdapterMode(): boolean {
+  return isDirectPgConfigured() || isLocalPgEnabled();
+}
+
 export function isSupabaseConfigured(): boolean {
-  return isCloudSupabaseConfigured() || isLocalPgEnabled();
+  return isCloudSupabaseConfigured() || isPgAdapterMode();
 }
 
 export function isSupabaseServiceConfigured(): boolean {
-  if (isLocalPgEnabled()) {
+  if (isPgAdapterMode()) {
     return true;
   }
   return Boolean(
     isCloudSupabaseConfigured() && process.env.SUPABASE_SERVICE_ROLE_KEY
   );
+}
+
+export function getDatabaseMode(): "supabase" | "neon_pg" | "local_pglite" | "unconfigured" {
+  if (isCloudSupabaseConfigured()) return "supabase";
+  if (isDirectPgConfigured()) return "neon_pg";
+  if (isLocalPgEnabled()) return "local_pglite";
+  return "unconfigured";
 }
 
 export function getPublicSupabaseEnv() {
