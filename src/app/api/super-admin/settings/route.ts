@@ -43,12 +43,33 @@ const settingsUpdateSchema = z.object({
   stats_positive_rate: z.number().min(0).max(100).default(98),
 });
 
-const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/svg+xml",
-]);
+const MIME_TO_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+function hasValidImageMagicBytes(buffer: Buffer, mimeType: string): boolean {
+  if (buffer.length < 12) return false;
+  if (mimeType === "image/jpeg") {
+    return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+  if (mimeType === "image/png") {
+    return (
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47
+    );
+  }
+  if (mimeType === "image/webp") {
+    return (
+      buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+      buffer.subarray(8, 12).toString("ascii") === "WEBP"
+    );
+  }
+  return false;
+}
 
 export async function GET() {
   const auth = await requireApiRole(["super_admin"]);
@@ -157,9 +178,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Rasm fayli tanlanmagan." }, { status: 400 });
     }
 
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    const safeExt = MIME_TO_EXT[file.type];
+    if (!safeExt) {
       return NextResponse.json(
-        { error: "Faqat JPG, PNG, WebP yoki SVG rasm yuklash mumkin." },
+        { error: "Faqat JPG, PNG yoki WebP formatdagi rasmlarni yuklash mumkin." },
         { status: 400 }
       );
     }
@@ -171,9 +193,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const ext = file.name.split(".").pop()?.toLowerCase() || "png";
-    const filePath = `${clinicId}/${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
+    if (!hasValidImageMagicBytes(buffer, file.type)) {
+      return NextResponse.json(
+        { error: "Yuklangan fayl haqiqiy rasm emas yoki shikastlangan." },
+        { status: 400 }
+      );
+    }
+
+    const safeFolder = folder || "general";
+    const filePath = `${clinicId}/${safeFolder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${safeExt}`;
 
     const { error: uploadError } = await admin.storage
       .from("clinic-media")

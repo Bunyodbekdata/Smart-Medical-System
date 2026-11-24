@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { recordAuditLog, requireApiRole } from "@/lib/auth/guards";
-import { getTashkentDateString } from "@/lib/formatters";
+import { getTashkentDateString, parseIsoDateOrDefault } from "@/lib/formatters";
 import { broadcastPublicQueueUpdate } from "@/lib/realtime/broadcast";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { paymentRecordSchema, refundRecordSchema } from "@/lib/validators";
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   if (!auth.ok) return auth.response;
 
   const { searchParams } = new URL(request.url);
-  const date = searchParams.get("date") || getTashkentDateString();
+  const date = parseIsoDateOrDefault(searchParams.get("date"));
   const statusFilter = searchParams.get("status") || "all";
 
   const admin = createServiceRoleClient();
@@ -99,13 +99,17 @@ export async function POST(request: Request) {
 
       const { data: existing } = await admin
         .from("payments")
-        .select("*")
+        .select("*, ticket:queue_tickets(id, queue_date)")
         .eq("id", parsed.data.paymentId)
         .eq("clinic_id", clinicId)
         .single();
 
       if (!existing) {
         return NextResponse.json({ error: "To'lov topilmadi." }, { status: 404 });
+      }
+
+      if (existing.is_confirmed) {
+        return NextResponse.json({ payment: existing });
       }
 
       const { data: updated, error } = await admin
@@ -140,6 +144,17 @@ export async function POST(request: Request) {
         newValues: { is_confirmed: true },
       });
 
+      const ticketDate =
+        (existing.ticket as unknown as { queue_date?: string } | null)?.queue_date ||
+        getTashkentDateString();
+
+      await broadcastPublicQueueUpdate({
+        clinicId,
+        doctorId: existing.doctor_id,
+        queueDate: ticketDate,
+        eventType: "payment_updated",
+      });
+
       return NextResponse.json({ payment: updated });
     }
 
@@ -154,13 +169,20 @@ export async function POST(request: Request) {
 
       const { data: payRow } = await admin
         .from("payments")
-        .select("id, clinic_id, queue_ticket_id, doctor_id")
+        .select("id, clinic_id, queue_ticket_id, doctor_id, is_confirmed, ticket:queue_tickets(id, queue_date)")
         .eq("id", parsed.data.paymentId)
         .eq("clinic_id", clinicId)
         .single();
 
       if (!payRow) {
         return NextResponse.json({ error: "To'lov topilmadi." }, { status: 404 });
+      }
+
+      if (!payRow.is_confirmed) {
+        return NextResponse.json(
+          { error: "Tasdiqlanmagan to'lovni qaytarib bo'lmaydi." },
+          { status: 400 }
+        );
       }
 
       const { data: refund, error } = await admin.rpc("record_payment_refund", {
@@ -176,10 +198,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
 
+      const refundTicketDate =
+        (payRow.ticket as unknown as { queue_date?: string } | null)?.queue_date ||
+        getTashkentDateString();
+
       await broadcastPublicQueueUpdate({
         clinicId,
         doctorId: payRow.doctor_id,
-        queueDate: getTashkentDateString(),
+        queueDate: refundTicketDate,
         eventType: "payment_updated",
       });
 

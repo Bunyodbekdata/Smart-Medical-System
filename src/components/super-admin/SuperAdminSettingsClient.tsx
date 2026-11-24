@@ -303,6 +303,7 @@ export function SuperAdminSettingsClient() {
                 <div>
                   <Label>Telegram</Label>
                   <Input
+                    placeholder="https://t.me/medclinic"
                     value={form.social_links?.telegram || ""}
                     onChange={(e) =>
                       setForm({
@@ -315,11 +316,38 @@ export function SuperAdminSettingsClient() {
                 <div>
                   <Label>Instagram</Label>
                   <Input
+                    placeholder="https://instagram.com/medclinic"
                     value={form.social_links?.instagram || ""}
                     onChange={(e) =>
                       setForm({
                         ...form,
                         social_links: { ...form.social_links, instagram: e.target.value },
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>Facebook</Label>
+                  <Input
+                    placeholder="https://facebook.com/medclinic"
+                    value={form.social_links?.facebook || ""}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        social_links: { ...form.social_links, facebook: e.target.value },
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>YouTube</Label>
+                  <Input
+                    placeholder="https://youtube.com/@medclinic"
+                    value={form.social_links?.youtube || ""}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        social_links: { ...form.social_links, youtube: e.target.value },
                       })
                     }
                   />

@@ -3,14 +3,19 @@ import { z } from "zod";
 import { recordAuditLog, requireApiRole } from "@/lib/auth/guards";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
-const scheduleItemSchema = z.object({
-  dayOfWeek: z.number().int().min(1).max(7),
-  startTime: z.string().regex(/^\d{2}:\d{2}/),
-  endTime: z.string().regex(/^\d{2}:\d{2}/),
-  breakStart: z.string().optional().nullable(),
-  breakEnd: z.string().optional().nullable(),
-  isWorking: z.boolean(),
-});
+const scheduleItemSchema = z
+  .object({
+    dayOfWeek: z.number().int().min(1).max(7),
+    startTime: z.string().regex(/^\d{2}:\d{2}/),
+    endTime: z.string().regex(/^\d{2}:\d{2}/),
+    breakStart: z.string().optional().nullable(),
+    breakEnd: z.string().optional().nullable(),
+    isWorking: z.boolean(),
+  })
+  .refine(
+    (s) => !s.isWorking || s.endTime.slice(0, 5) > s.startTime.slice(0, 5),
+    { message: "Ish tugash vaqti boshlanish vaqtidan keyin bo'lishi kerak" }
+  );
 
 const createDoctorSchema = z.object({
   fullName: z.string().trim().min(3, "Shifokor ismi kamida 3 ta belgi").max(120),
@@ -137,8 +142,11 @@ export async function POST(request: Request) {
 
   try {
     if (parsed.data.account) {
+      const normEmail = parsed.data.account.email.trim().toLowerCase();
+      const normUsername = parsed.data.account.username?.trim().toLowerCase() || null;
+
       const { data: authUser, error: authErr } = await admin.auth.admin.createUser({
-        email: parsed.data.account.email,
+        email: normEmail,
         password: parsed.data.account.password,
         email_confirm: true,
         app_metadata: { clinic_id: clinicId, role: "doctor" },
@@ -157,8 +165,8 @@ export async function POST(request: Request) {
         clinic_id: clinicId,
         role: "doctor",
         full_name: parsed.data.fullName,
-        username: parsed.data.account.username || null,
-        email: parsed.data.account.email,
+        username: normUsername,
+        email: normEmail,
         phone: parsed.data.account.phone || null,
         is_active: true,
       });
@@ -181,7 +189,7 @@ export async function POST(request: Request) {
         photo_url: parsed.data.photoUrl ?? null,
         room_id: parsed.data.roomId ?? null,
         consultation_price: parsed.data.consultationPrice,
-        queue_prefix: parsed.data.queuePrefix || null,
+        queue_prefix: parsed.data.queuePrefix ? parsed.data.queuePrefix.toUpperCase() : null,
         separate_queue: parsed.data.separateQueue,
         availability_status: parsed.data.availabilityStatus,
         is_active: true,
@@ -347,8 +355,11 @@ export async function PATCH(request: Request) {
         );
       }
 
+      const normEmail = parsed.data.email.trim().toLowerCase();
+      const normUsername = parsed.data.username?.trim().toLowerCase() || null;
+
       const { data: authUser, error: authErr } = await admin.auth.admin.createUser({
-        email: parsed.data.email,
+        email: normEmail,
         password: parsed.data.password,
         email_confirm: true,
         app_metadata: { clinic_id: clinicId, role: "doctor" },
@@ -362,8 +373,8 @@ export async function PATCH(request: Request) {
         clinic_id: clinicId,
         role: "doctor",
         full_name: doctor.full_name,
-        username: parsed.data.username || null,
-        email: parsed.data.email,
+        username: normUsername,
+        email: normEmail,
         is_active: doctor.is_active,
       });
 
@@ -398,7 +409,7 @@ export async function PATCH(request: Request) {
         photo_url: d.photoUrl ?? null,
         room_id: d.roomId ?? null,
         consultation_price: d.consultationPrice,
-        queue_prefix: d.queuePrefix || null,
+        queue_prefix: d.queuePrefix ? d.queuePrefix.toUpperCase() : null,
         separate_queue: d.separateQueue,
         availability_status: d.availabilityStatus,
       })
@@ -415,14 +426,31 @@ export async function PATCH(request: Request) {
         .eq("id", doctor.user_id);
     }
 
-    // Sync doctor_services
+    // Sync doctor_services while preserving existing custom_price overrides
+    const { data: existingLinks } = await admin
+      .from("doctor_services")
+      .select("service_id, custom_price")
+      .eq("doctor_id", doctor.id);
+
+    const customPriceMap = new Map<string, number | null>();
+    for (const link of existingLinks ?? []) {
+      customPriceMap.set(
+        link.service_id,
+        link.custom_price === null || link.custom_price === undefined
+          ? null
+          : Number(link.custom_price)
+      );
+    }
+
     await admin.from("doctor_services").delete().eq("doctor_id", doctor.id);
     if (d.serviceIds.length > 0) {
+      const uniqueServiceIds = Array.from(new Set(d.serviceIds));
       await admin.from("doctor_services").insert(
-        d.serviceIds.map((serviceId) => ({
+        uniqueServiceIds.map((serviceId) => ({
           clinic_id: clinicId,
           doctor_id: doctor.id,
           service_id: serviceId,
+          custom_price: customPriceMap.get(serviceId) ?? null,
           is_active: true,
         }))
       );

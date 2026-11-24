@@ -1,4 +1,4 @@
-import { isSupabaseServiceConfigured, getServiceSupabaseEnv } from "@/lib/supabase/env";
+import { getServiceSupabaseEnv, isCloudSupabaseConfigured } from "@/lib/supabase/env";
 
 export async function broadcastPublicQueueUpdate(params: {
   clinicId: string;
@@ -6,7 +6,9 @@ export async function broadcastPublicQueueUpdate(params: {
   queueDate: string;
   eventType: "ticket_created" | "status_changed" | "payment_updated";
 }) {
-  if (!isSupabaseServiceConfigured()) return;
+  if (!isCloudSupabaseConfigured() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return;
+  }
 
   try {
     const { url, serviceKey } = getServiceSupabaseEnv();

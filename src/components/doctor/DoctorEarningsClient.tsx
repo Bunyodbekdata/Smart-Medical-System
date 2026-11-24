@@ -295,7 +295,9 @@ export function DoctorEarningsClient() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {ledger.map((entry) => {
-                    const isPositive = Number(entry.doctor_amount) >= 0;
+                    const isPayout = entry.entry_type === "payout";
+                    const amountNum = Number(entry.doctor_amount);
+                    const isPositive = !isPayout && amountNum >= 0;
                     return (
                       <tr key={entry.id} className="hover:bg-slate-50/60">
                         <td className="px-4 py-3 text-xs font-medium text-slate-700">
@@ -329,15 +331,20 @@ export function DoctorEarningsClient() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-slate-600">
-                          {formatUZS(entry.gross_amount)}
+                          {isPayout ? "—" : formatUZS(entry.gross_amount)}
                         </td>
                         <td
-                          className={`px-4 py-3 text-right font-bold ${
-                            isPositive ? "text-emerald-700" : "text-rose-600"
+                          className={`px-4 py-3 text-right font-bold tabular-nums ${
+                            isPayout
+                              ? "text-[#0B4F8A]"
+                              : isPositive
+                                ? "text-emerald-700"
+                                : "text-rose-600"
                           }`}
                         >
-                          {isPositive ? "+" : ""}
-                          {formatUZS(entry.doctor_amount)}
+                          {isPayout
+                            ? `-${formatUZS(Math.abs(amountNum))}`
+                            : `${isPositive ? "+" : ""}${formatUZS(amountNum)}`}
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-500">
                           {entry.notes || "—"}

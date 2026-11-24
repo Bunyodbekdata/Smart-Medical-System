@@ -99,6 +99,17 @@ export async function PATCH(request: Request) {
   const clinicId = auth.session.profile.clinic_id;
   const admin = createServiceRoleClient();
 
+  const { data: existing } = await admin
+    .from("rooms")
+    .select("*")
+    .eq("id", parsed.data.id)
+    .eq("clinic_id", clinicId)
+    .maybeSingle();
+
+  if (!existing) {
+    return NextResponse.json({ error: "Xona topilmadi." }, { status: 404 });
+  }
+
   const { data: room, error } = await admin
     .from("rooms")
     .update({
@@ -115,5 +126,59 @@ export async function PATCH(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  await recordAuditLog({
+    clinicId,
+    actorUserId: auth.session.userId,
+    action: "room.updated",
+    entityType: "room",
+    entityId: room.id,
+    summary: `Xona ma'lumotlari yangilandi: ${room.room_number}-xona`,
+    previousValues: { room_number: existing.room_number, is_active: existing.is_active },
+    newValues: { room_number: room.room_number, is_active: room.is_active },
+  });
+
   return NextResponse.json({ room });
+}
+
+export async function DELETE(request: Request) {
+  const auth = await requireApiRole(["super_admin"]);
+  if (!auth.ok) return auth.response;
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  if (!id || !z.string().uuid().safeParse(id).success) {
+    return NextResponse.json({ error: "Xona ID noto'g'ri." }, { status: 400 });
+  }
+
+  const clinicId = auth.session.profile.clinic_id;
+  const admin = createServiceRoleClient();
+
+  const { data: existing } = await admin
+    .from("rooms")
+    .select("*")
+    .eq("id", id)
+    .eq("clinic_id", clinicId)
+    .maybeSingle();
+
+  if (!existing) {
+    return NextResponse.json({ error: "Xona topilmadi." }, { status: 404 });
+  }
+
+  const { error } = await admin.from("rooms").delete().eq("id", id).eq("clinic_id", clinicId);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  await recordAuditLog({
+    clinicId,
+    actorUserId: auth.session.userId,
+    action: "room.deleted",
+    entityType: "room",
+    entityId: id,
+    summary: `Xona o'chirildi: ${existing.room_number}-xona`,
+    previousValues: { room_number: existing.room_number, name: existing.name },
+  });
+
+  return NextResponse.json({ ok: true, deleted: true });
 }

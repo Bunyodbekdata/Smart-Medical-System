@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { recordAuditLog, requireApiRole } from "@/lib/auth/guards";
-import { getTashkentDateString } from "@/lib/formatters";
+import { parseIsoDateOrDefault } from "@/lib/formatters";
 import { broadcastPublicQueueUpdate } from "@/lib/realtime/broadcast";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
   const doctor = auth.session.doctor!;
   const clinicId = auth.session.profile.clinic_id;
   const { searchParams } = new URL(request.url);
-  const date = searchParams.get("date") || getTashkentDateString();
+  const date = parseIsoDateOrDefault(searchParams.get("date"));
 
   const admin = createServiceRoleClient();
 

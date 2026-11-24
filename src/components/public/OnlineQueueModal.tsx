@@ -88,8 +88,34 @@ function OnlineQueueModalInner({
     return "";
   })();
 
+  const resolvedInitialDoctorId = (() => {
+    if (initialDoctorId) {
+      const target = doctors.find((d) => d.id === initialDoctorId);
+      return target && target.availability_status !== "off_duty" ? target.id : "";
+    }
+    if (resolvedInitialServiceId) {
+      const firstEligible =
+        doctors.find(
+          (d) =>
+            d.availability_status === "available" &&
+            d.doctor_services?.some(
+              (ds) => ds.service_id === resolvedInitialServiceId && ds.is_active
+            )
+        ) ??
+        doctors.find(
+          (d) =>
+            d.availability_status !== "off_duty" &&
+            d.doctor_services?.some(
+              (ds) => ds.service_id === resolvedInitialServiceId && ds.is_active
+            )
+        );
+      return firstEligible?.id ?? "";
+    }
+    return "";
+  })();
+
   const [selectedServiceId, setSelectedServiceId] = useState<string>(resolvedInitialServiceId);
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(initialDoctorId || "");
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(resolvedInitialDoctorId);
   const [serviceSearch, setServiceSearch] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("+998 ");
@@ -153,12 +179,21 @@ function OnlineQueueModalInner({
     const stillValid = doctors.some(
       (d) =>
         d.id === selectedDoctorId &&
+        d.availability_status !== "off_duty" &&
         d.doctor_services?.some((ds) => ds.service_id === serviceId && ds.is_active)
     );
     if (!stillValid) {
-      const firstDoc = doctors.find((d) =>
-        d.doctor_services?.some((ds) => ds.service_id === serviceId && ds.is_active)
-      );
+      const firstDoc =
+        doctors.find(
+          (d) =>
+            d.availability_status === "available" &&
+            d.doctor_services?.some((ds) => ds.service_id === serviceId && ds.is_active)
+        ) ??
+        doctors.find(
+          (d) =>
+            d.availability_status !== "off_duty" &&
+            d.doctor_services?.some((ds) => ds.service_id === serviceId && ds.is_active)
+        );
       setSelectedDoctorId(firstDoc?.id ?? "");
     }
   }
@@ -443,15 +478,21 @@ function OnlineQueueModalInner({
                   <div className="grid max-h-44 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                     {eligibleDoctors.map((doc) => {
                       const active = doc.id === selectedDoctorId;
+                      const isOffToday = doc.availability_status === "off_duty";
                       return (
                         <button
                           key={doc.id}
                           type="button"
-                          onClick={() => setSelectedDoctorId(doc.id)}
-                          className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-left transition-all ${
-                            active
-                              ? "border-[#0B4F8A] bg-[#EDF4FA] ring-2 ring-[#0B4F8A]/15"
-                              : "border-slate-200 bg-white hover:border-[#0B4F8A]/40"
+                          disabled={isOffToday}
+                          onClick={() => {
+                            if (!isOffToday) setSelectedDoctorId(doc.id);
+                          }}
+                          className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-all ${
+                            isOffToday
+                              ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-55"
+                              : active
+                                ? "cursor-pointer border-[#0B4F8A] bg-[#EDF4FA] ring-2 ring-[#0B4F8A]/15"
+                                : "cursor-pointer border-slate-200 bg-white hover:border-[#0B4F8A]/40"
                           }`}
                         >
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EDF4FA] text-[#0B4F8A]">

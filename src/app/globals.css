@@ -1,7 +1,11 @@
 @import "tailwindcss";
 
+:root {
+  --font-plus-jakarta: "Plus Jakarta Sans", "Inter", "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
 @theme inline {
-  --font-sans: var(--font-plus-jakarta), "Plus Jakarta Sans", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-plus-jakarta);
   --color-brand-primary: #0b4f8a;
   --color-brand-primary-hover: #083d6b;
   --color-brand-teal: #0d9488;

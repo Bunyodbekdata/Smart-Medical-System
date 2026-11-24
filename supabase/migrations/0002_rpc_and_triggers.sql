@@ -198,6 +198,14 @@ BEGIN
     END IF;
   END IF;
 
+  PERFORM 1
+  FROM public.clinics
+  WHERE id = p_clinic_id AND is_active = true;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Klinika topilmadi yoki faol emas';
+  END IF;
+
   SELECT * INTO v_settings
   FROM public.clinic_settings
   WHERE clinic_id = p_clinic_id;
@@ -216,6 +224,10 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Tanlangan shifokor topilmadi yoki faol emas';
+  END IF;
+
+  IF p_source = 'online' AND v_doctor.availability_status = 'off_duty' THEN
+    RAISE EXCEPTION 'Tanlangan shifokor bugun qabul qilmaydi';
   END IF;
 
   SELECT * INTO v_service
@@ -894,6 +906,10 @@ BEGIN
     RAISE EXCEPTION 'To''lov topilmadi';
   END IF;
 
+  IF NOT v_payment.is_confirmed THEN
+    RAISE EXCEPTION 'Tasdiqlanmagan to''lovni qaytarib bo''lmaydi';
+  END IF;
+
   SELECT coalesce(sum(amount), 0) INTO v_already_refunded
   FROM public.refunds
   WHERE payment_id = p_payment_id;
@@ -1027,19 +1043,22 @@ BEGIN
       ORDER BY (CASE WHEN qt2.status = 'qabulda' THEN 0 ELSE 1 END), qt2.called_at DESC NULLS LAST
       LIMIT 1
     ) AS current_serving_ticket_number,
-    (
-      SELECT count(*)::integer
-      FROM public.queue_tickets qt3
-      WHERE qt3.clinic_id = v_t.clinic_id
-        AND qt3.doctor_id = v_t.doctor_id
-        AND qt3.queue_date = v_t.queue_date
-        AND qt3.status IN ('kutilmoqda', 'chaqirildi')
-        AND qt3.id <> v_t.id
-        AND (
-          qt3.priority_level > v_t.priority_level
-          OR (qt3.priority_level = v_t.priority_level AND qt3.sequence_number < v_t.sequence_number)
-        )
-    ) AS people_ahead,
+    CASE
+      WHEN v_t.status = 'kutilmoqda' THEN (
+        SELECT count(*)::integer
+        FROM public.queue_tickets qt3
+        WHERE qt3.clinic_id = v_t.clinic_id
+          AND qt3.doctor_id = v_t.doctor_id
+          AND qt3.queue_date = v_t.queue_date
+          AND qt3.status IN ('kutilmoqda', 'chaqirildi')
+          AND qt3.id <> v_t.id
+          AND (
+            qt3.priority_level > v_t.priority_level
+            OR (qt3.priority_level = v_t.priority_level AND qt3.sequence_number < v_t.sequence_number)
+          )
+      )
+      ELSE 0
+    END AS people_ahead,
     v_t.created_at,
     v_t.called_at,
     v_t.started_at,

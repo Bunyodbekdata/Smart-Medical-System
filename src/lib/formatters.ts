@@ -194,3 +194,26 @@ export function getRoleHomeRoute(role: "super_admin" | "admin" | "doctor"): stri
       return "/doctor";
   }
 }
+
+export function parseSafeInt(
+  value: string | null | undefined,
+  fallback: number,
+  min: number,
+  max: number
+): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(parsed)));
+}
+
+export function parseIsoDateOrDefault(
+  value: string | null | undefined,
+  fallback: string = getTashkentDateString()
+): string {
+  if (!value) return fallback;
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return fallback;
+  const probe = new Date(`${trimmed}T00:00:00+05:00`);
+  if (Number.isNaN(probe.getTime())) return fallback;
+  return trimmed;
+}

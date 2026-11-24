@@ -14,11 +14,16 @@ export default async function StaffLoginPage({
 }) {
   const params = await searchParams;
   const configured = isSupabaseConfigured() && isSupabaseServiceConfigured();
+  let hasBrokenDoctorSession = false;
 
   if (configured) {
     const session = await getCurrentStaffSession();
     if (session) {
-      redirect(getSafeRedirectPath(params.next, session.profile.role));
+      if (session.profile.role === "doctor" && !session.doctor) {
+        hasBrokenDoctorSession = true;
+      } else {
+        redirect(getSafeRedirectPath(params.next, session.profile.role));
+      }
     }
   }
 
@@ -30,7 +35,10 @@ export default async function StaffLoginPage({
       clinicLogoUrl={branding.logoUrl}
       configured={configured}
       nextPath={params.next ?? null}
-      initialErrorCode={params.error ?? null}
+      initialErrorCode={
+        params.error ?? (hasBrokenDoctorSession ? "doctor_profile_missing" : null)
+      }
+      hasActiveBrokenSession={hasBrokenDoctorSession}
     />
   );
 }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { recordAuditLog, requireApiRole } from "@/lib/auth/guards";
 import { summarizeClinicFinances } from "@/lib/domain/finance-rules";
-import { getTashkentDateString } from "@/lib/formatters";
+import { getTashkentDateString, parseIsoDateOrDefault } from "@/lib/formatters";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { commissionRuleSchema, expenseSchema } from "@/lib/validators";
 
@@ -26,8 +26,12 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const todayStr = getTashkentDateString();
-  const fromDate = searchParams.get("from") || `${todayStr.slice(0, 7)}-01`;
-  const toDate = searchParams.get("to") || todayStr;
+  const rawFrom = parseIsoDateOrDefault(
+    searchParams.get("from"),
+    `${todayStr.slice(0, 7)}-01`
+  );
+  const rawTo = parseIsoDateOrDefault(searchParams.get("to"), todayStr);
+  const [fromDate, toDate] = rawFrom <= rawTo ? [rawFrom, rawTo] : [rawTo, rawFrom];
 
   const fromUtc = new Date(`${fromDate}T00:00:00+05:00`).toISOString();
   const toUtc = new Date(`${toDate}T23:59:59.999+05:00`).toISOString();
@@ -49,7 +53,7 @@ export async function GET(request: Request) {
       admin
         .from("payments")
         .select(
-          "id, receipt_number, amount, payment_method, is_confirmed, paid_at, patient:patients(full_name), doctor:doctors(full_name), service:services(name)"
+          "id, doctor_id, receipt_number, amount, payment_method, is_confirmed, paid_at, patient:patients(full_name), doctor:doctors(full_name), service:services(name)"
         )
         .eq("clinic_id", clinicId)
         .gte("paid_at", fromUtc)
@@ -57,14 +61,14 @@ export async function GET(request: Request) {
         .order("paid_at", { ascending: false }),
       admin
         .from("refunds")
-        .select("id, refund_number, amount, refund_method, reason, refunded_at")
+        .select("id, payment_id, refund_number, amount, refund_method, reason, refunded_at, payment:payments(doctor_id)")
         .eq("clinic_id", clinicId)
         .gte("refunded_at", fromUtc)
         .lte("refunded_at", toUtc)
         .order("refunded_at", { ascending: false }),
       admin
         .from("queue_tickets")
-        .select("id, total_due, paid_amount, status, queue_date")
+        .select("id, doctor_id, total_due, paid_amount, status, queue_date")
         .eq("clinic_id", clinicId)
         .gte("queue_date", fromDate)
         .lte("queue_date", toDate),
@@ -142,6 +146,23 @@ export async function GET(request: Request) {
       });
     }
 
+    for (const p of payments) {
+      if (!p.is_confirmed) continue;
+      const row = doctorSummaryMap.get(p.doctor_id);
+      if (row) {
+        row.clinicRevenue += Number(p.amount);
+      }
+    }
+
+    for (const r of refunds) {
+      const docId = (r.payment as unknown as { doctor_id?: string } | null)?.doctor_id;
+      if (!docId) continue;
+      const row = doctorSummaryMap.get(docId);
+      if (row) {
+        row.clinicRevenue = Math.max(0, Number((row.clinicRevenue - Number(r.amount)).toFixed(2)));
+      }
+    }
+
     for (const e of earnings) {
       const row = doctorSummaryMap.get(e.doctor_id);
       if (!row) continue;
@@ -149,11 +170,6 @@ export async function GET(request: Request) {
         row.paidOut += Math.abs(Number(e.doctor_amount));
       } else {
         row.allocated += Number(e.doctor_amount);
-        if (e.entry_type === "accrual") {
-          row.clinicRevenue += Number(e.gross_amount);
-        } else if (e.entry_type === "refund_adjustment") {
-          row.clinicRevenue = Math.max(0, row.clinicRevenue);
-        }
       }
       row.balanceOwed = Number((row.allocated - row.paidOut).toFixed(2));
     }
@@ -310,6 +326,17 @@ export async function POST(request: Request) {
           { error: parsed.error.issues[0]?.message || "To'lov ma'lumotlari noto'g'ri." },
           { status: 400 }
         );
+      }
+
+      const { data: targetDoctor } = await admin
+        .from("doctors")
+        .select("id, full_name")
+        .eq("id", parsed.data.doctorId)
+        .eq("clinic_id", clinicId)
+        .maybeSingle();
+
+      if (!targetDoctor) {
+        return NextResponse.json({ error: "Shifokor topilmadi." }, { status: 404 });
       }
 
       const { data: entry, error } = await admin

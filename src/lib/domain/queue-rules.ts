@@ -60,13 +60,13 @@ export function calculatePromotionDiscount(
   }
   let discountAmount = 0;
   if (promotion.discount_type === "percentage") {
-    discountAmount = Math.round((basePrice * promotion.discount_value) / 100);
+    discountAmount = Number(((basePrice * promotion.discount_value) / 100).toFixed(2));
   } else {
     discountAmount = Math.min(basePrice, promotion.discount_value);
   }
   discountAmount = Math.max(0, Math.min(basePrice, discountAmount));
   return {
     discountAmount,
-    finalPrice: Math.max(0, basePrice - discountAmount),
+    finalPrice: Math.max(0, Number((basePrice - discountAmount).toFixed(2))),
   };
 }

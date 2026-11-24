@@ -20,7 +20,8 @@ import {
 interface ConsultationRow {
   id: string;
   started_at: string;
-  completed_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number | null;
   visit_notes: string | null;
   patient?: {
     id: string;
@@ -142,9 +143,12 @@ export function DoctorPatientsClient() {
                           <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
                           {formatDateDDMMYYYY(item.started_at)}
                         </div>
-                        <div className="mt-0.5 text-slate-400">
+                        <div className="mt-0.5 text-slate-400 tabular-nums">
                           {formatTimeHHMM(item.started_at)}
-                          {item.completed_at ? ` – ${formatTimeHHMM(item.completed_at)}` : ""}
+                          {item.ended_at ? ` – ${formatTimeHHMM(item.ended_at)}` : ""}
+                          {item.duration_seconds !== null && item.duration_seconds !== undefined
+                            ? ` (${Math.max(1, Math.round(item.duration_seconds / 60))} daq)`
+                            : ""}
                         </div>
                       </td>
                       <td className="px-4 py-3.5">

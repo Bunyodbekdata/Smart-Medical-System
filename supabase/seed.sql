@@ -21,6 +21,9 @@ DECLARE
   v_doc_madina uuid := '41111111-1111-4111-8111-111111111102';
   v_doc_sardor uuid := '41111111-1111-4111-8111-111111111103';
   v_doc_dilnoza uuid := '41111111-1111-4111-8111-111111111104';
+
+  v_promo_stom uuid := '51111111-1111-4111-8111-111111111101';
+  v_comm_default uuid := '61111111-1111-4111-8111-111111111101';
   v_d smallint;
 BEGIN
   INSERT INTO public.clinics (id, slug, name, is_active)
@@ -87,23 +90,24 @@ BEGIN
     ON CONFLICT (doctor_id, day_of_week) DO NOTHING;
   END LOOP;
 
-  INSERT INTO public.promotions (clinic_id, title, description, discount_type, discount_value, service_id, starts_at, ends_at, is_active) VALUES
+  INSERT INTO public.promotions (id, clinic_id, title, description, discount_type, discount_value, service_id, starts_at, ends_at, is_active) VALUES
     (
+      v_promo_stom,
       v_clinic_id,
       'Stomatologiya xizmatlariga 15% chegirma!',
       'Tish davolash va professional konsultatsiya xizmatlaridan foydalanib 15% chegirmaga ega bo''ling.',
       'percentage',
       15,
       v_srv_stomatologiya,
-      (CURRENT_DATE - 5),
-      (CURRENT_DATE + 45),
+      (public.tashkent_today() - 5),
+      (public.tashkent_today() + 45),
       true
     )
-  ON CONFLICT DO NOTHING;
+  ON CONFLICT (id) DO NOTHING;
 
-  INSERT INTO public.commission_rules (clinic_id, doctor_id, service_id, commission_type, commission_value, effective_from, notes, is_active)
+  INSERT INTO public.commission_rules (id, clinic_id, doctor_id, service_id, commission_type, commission_value, effective_from, notes, is_active)
   VALUES (
-    v_clinic_id, NULL, NULL, 'percentage', 40, (CURRENT_DATE - 30), 'Klinika bo''yicha standart shifokor ulushi (40%)', true
+    v_comm_default, v_clinic_id, NULL, NULL, 'percentage', 40, (public.tashkent_today() - 30), 'Klinika bo''yicha standart shifokor ulushi (40%)', true
   )
-  ON CONFLICT DO NOTHING;
+  ON CONFLICT (id) DO NOTHING;
 END $$;

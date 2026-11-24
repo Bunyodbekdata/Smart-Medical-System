@@ -1,5 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  LOCAL_SESSION_COOKIE,
+  verifySignedSessionToken,
+} from "@/lib/auth/session-token";
 
 export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -15,11 +19,16 @@ export async function proxy(request: NextRequest) {
       Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL) ||
       process.env.MEDCLINIC_LOCAL_PG === "true";
     if (usesPgAdapter && isProtectedStaffPath) {
-      const localCookie = request.cookies.get("medclinic_local_session")?.value;
-      if (!localCookie) {
+      const localCookie = request.cookies.get(LOCAL_SESSION_COOKIE)?.value;
+      const validUserId = verifySignedSessionToken(localCookie);
+      if (!validUserId) {
         const loginUrl = new URL("/staff/login", request.url);
         loginUrl.searchParams.set("next", pathname);
-        return NextResponse.redirect(loginUrl);
+        const redirectRes = NextResponse.redirect(loginUrl);
+        if (localCookie) {
+          redirectRes.cookies.delete(LOCAL_SESSION_COOKIE);
+        }
+        return redirectRes;
       }
     }
     return NextResponse.next();

@@ -3,23 +3,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Activity,
   ArrowRight,
   ArrowUpRight,
-  Award,
   CalendarClock,
   CheckCircle2,
   Clock,
-  Cpu,
   ExternalLink,
-  FlaskConical,
-  HeartPulse,
+  Mail,
   MapPin,
   Menu,
   Phone,
   Search,
   ShieldCheck,
-  SmilePlus,
   Sparkles,
   Star,
   Stethoscope,
@@ -39,23 +34,12 @@ import {
 import { formatCompactNumber, formatDateDDMMYYYY, formatUZS } from "@/lib/formatters";
 import { calculatePromotionDiscount } from "@/lib/domain/queue-rules";
 import type { PublicClinicBundle } from "@/lib/data/public-clinic";
+import { SERVICE_ICON_MAP } from "@/lib/service-icons";
 import {
   DAYS_OF_WEEK_UZ,
   DOCTOR_AVAILABILITY_CLASSES,
   DOCTOR_AVAILABILITY_LABELS,
 } from "@/lib/uz-labels";
-
-const SERVICE_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  SmilePlus,
-  Stethoscope,
-  FlaskConical,
-  ScanHeart: Activity,
-  HeartPulse,
-  Cpu,
-  Award,
-  Clock,
-  ShieldCheck,
-};
 
 function getDoctorFallbackPhoto(fullName: string, index: number): string {
   const lower = fullName.toLowerCase();
@@ -92,6 +76,11 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
 
   const settings = bundle.settings;
   const clinicName = settings?.clinic_name || "MedClinic";
+  const onlineQueueAllowed = Boolean(
+    bundle.clinicId &&
+      bundle.services.length > 0 &&
+      (settings?.allow_online_queue ?? true)
+  );
 
   const serviceCategories = useMemo(() => {
     const cats = Array.from(new Set(bundle.services.map((s) => s.category)));
@@ -249,7 +238,7 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
           <div className="flex items-center gap-2.5">
             <Button
               onClick={() => openBookingModal()}
-              disabled={!bundle.clinicId || bundle.services.length === 0}
+              disabled={!onlineQueueAllowed}
               className="hidden sm:inline-flex"
             >
               Onlayn navbat olish
@@ -293,7 +282,7 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
                     setMobileMenuOpen(false);
                     openBookingModal();
                   }}
-                  disabled={!bundle.clinicId || bundle.services.length === 0}
+                  disabled={!onlineQueueAllowed}
                   className="w-full"
                 >
                   Onlayn navbat olish
@@ -304,7 +293,7 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
         ) : null}
       </header>
 
-      {/* Setup Banner when Supabase is not yet configured */}
+      {/* Setup Banner when DB is not yet configured */}
       {!bundle.configured || !bundle.clinicId ? (
         <div className="mx-auto mt-6 max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
@@ -314,6 +303,21 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
             <p className="mt-1 text-xs leading-relaxed text-amber-800">
               Ilovani to&apos;liq ishga tushirish uchun <code className="font-mono">.env.local</code>{" "}
               faylini sozlang va migratsiyalarni bajaring.
+            </p>
+          </div>
+        </div>
+      ) : settings && !settings.allow_online_queue ? (
+        <div className="mx-auto mt-6 max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="rounded-2xl border border-sky-200 bg-[#EDF4FA] p-4 text-sm text-[#0A1628]">
+            <p className="font-bold text-[#0B4F8A]">
+              Onlayn navbat olish vaqtincha to&apos;xtatilgan
+            </p>
+            <p className="mt-0.5 text-xs text-slate-600">
+              Qabulga yozilish uchun iltimos qabulxonaga tashrif buyuring yoki{" "}
+              <a href={`tel:${settings.phone}`} className="font-bold text-[#0B4F8A] underline">
+                {settings.phone}
+              </a>{" "}
+              raqamiga qo&apos;ng&apos;iroq qiling.
             </p>
           </div>
         </div>
@@ -352,7 +356,7 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
                 <Button
                   size="lg"
                   onClick={() => openBookingModal()}
-                  disabled={!bundle.clinicId || bundle.services.length === 0}
+                  disabled={!onlineQueueAllowed}
                   className="px-7"
                 >
                   Onlayn navbat olish
@@ -478,7 +482,7 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
             size="sm"
             variant="secondary"
             onClick={() => openBookingModal()}
-            disabled={!bundle.clinicId || bundle.services.length === 0}
+            disabled={!onlineQueueAllowed}
           >
             Hozir yozilish
             <ArrowRight className="h-3.5 w-3.5" />
@@ -560,7 +564,9 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
               d.doctor_services?.some((ds) => ds.service_id === service.id && ds.is_active)
             ).length;
             const promo =
-              bundle.promotions.find((p) => p.service_id === service.id) ?? null;
+              bundle.promotions.find((p) => p.service_id === service.id) ??
+              bundle.promotions.find((p) => p.service_id === null) ??
+              null;
             const discountInfo = promo
               ? calculatePromotionDiscount(Number(service.price), promo)
               : null;
@@ -638,7 +644,7 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
                   <button
                     type="button"
                     onClick={() => openBookingModal({ serviceId: service.id })}
-                    disabled={assignedDoctorsCount === 0}
+                    disabled={!onlineQueueAllowed || assignedDoctorsCount === 0}
                     className="mt-4 inline-flex w-full cursor-pointer items-center justify-between rounded-xl border border-slate-200/90 bg-slate-50/70 px-3.5 py-2 text-xs font-bold text-[#0A1628] transition-all group-hover:border-[#0B4F8A]/30 group-hover:bg-[#EDF4FA] group-hover:text-[#0B4F8A] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <span>Navbat olish</span>
@@ -722,6 +728,13 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
                   : "Jadval bo'yicha";
 
               const fallbackPhoto = getDoctorFallbackPhoto(doctor.full_name, index);
+              const activeDoctorServices = (doctor.doctor_services ?? []).filter(
+                (ds) => ds.is_active && ds.service
+              );
+              const canBookDoctor =
+                onlineQueueAllowed &&
+                doctor.availability_status !== "off_duty" &&
+                activeDoctorServices.length > 0;
 
               return (
                 <div
@@ -779,16 +792,14 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
                       ) : null}
 
                       <div className="mt-3.5 flex flex-wrap gap-1.5">
-                        {(doctor.doctor_services ?? [])
-                          .filter((ds) => ds.is_active && ds.service)
-                          .map((ds) => (
-                            <span
-                              key={ds.id}
-                              className="rounded-lg border border-slate-200/80 bg-slate-50 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700"
-                            >
-                              {ds.service?.name}
-                            </span>
-                          ))}
+                        {activeDoctorServices.map((ds) => (
+                          <span
+                            key={ds.id}
+                            className="rounded-lg border border-slate-200/80 bg-slate-50 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700"
+                          >
+                            {ds.service?.name}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -803,9 +814,12 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
                       </div>
                       <Button
                         size="sm"
+                        disabled={!canBookDoctor}
                         onClick={() => openBookingModal({ doctorId: doctor.id })}
                       >
-                        Navbat olish
+                        {doctor.availability_status === "off_duty"
+                          ? "Bugun qabul yo'q"
+                          : "Navbat olish"}
                       </Button>
                     </div>
                   </div>
@@ -855,6 +869,7 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
                     <div className="mt-6 flex flex-wrap items-center gap-4">
                       <Button
                         size="lg"
+                        disabled={!onlineQueueAllowed}
                         onClick={() =>
                           openBookingModal({ serviceId: promo.service_id ?? null })
                         }
@@ -960,6 +975,18 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
       {/* Executive Footer */}
       <footer id="aloqa" className="mt-20 bg-[#081120] text-slate-300">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+          {settings?.map_embed_url && settings.map_embed_url.startsWith("https://") ? (
+            <div className="mb-12 overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60 shadow-xl">
+              <iframe
+                src={settings.map_embed_url}
+                title={`${clinicName} joylashuvi`}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                className="h-64 w-full border-0 sm:h-80"
+              />
+            </div>
+          ) : null}
+
           <div className="grid gap-10 md:grid-cols-12">
             <div className="md:col-span-4">
               <ClinicLogo
@@ -1019,6 +1046,17 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
                   {settings?.phone || "+998 71 200 00 00"}
                 </a>
               </p>
+              {settings?.email ? (
+                <p className="flex items-center gap-2.5">
+                  <Mail className="h-4 w-4 shrink-0 text-teal-400" />
+                  <a
+                    href={`mailto:${settings.email}`}
+                    className="text-slate-300 transition-colors hover:text-teal-300"
+                  >
+                    {settings.email}
+                  </a>
+                </p>
+              ) : null}
               <p className="flex items-center gap-2.5 text-slate-400">
                 <Clock className="h-4 w-4 shrink-0 text-teal-400" />
                 <span>{settings?.working_hours_summary || "08:00 - 20:00"}</span>
@@ -1058,6 +1096,26 @@ export function PublicClinicWebsite({ bundle }: { bundle: PublicClinicBundle }) 
                     className="rounded-lg border border-white/12 px-3 py-1.5 font-medium text-slate-200 transition-colors hover:bg-white/10"
                   >
                     Instagram
+                  </a>
+                ) : null}
+                {settings?.social_links?.facebook ? (
+                  <a
+                    href={settings.social_links.facebook}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-white/12 px-3 py-1.5 font-medium text-slate-200 transition-colors hover:bg-white/10"
+                  >
+                    Facebook
+                  </a>
+                ) : null}
+                {settings?.social_links?.youtube ? (
+                  <a
+                    href={settings.social_links.youtube}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-white/12 px-3 py-1.5 font-medium text-slate-200 transition-colors hover:bg-white/10"
+                  >
+                    YouTube
                   </a>
                 ) : null}
               </div>

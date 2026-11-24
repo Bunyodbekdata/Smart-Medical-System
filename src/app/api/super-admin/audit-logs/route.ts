@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireApiRole } from "@/lib/auth/guards";
+import { parseSafeInt, sanitizePostgrestFilter } from "@/lib/formatters";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
@@ -7,11 +8,11 @@ export async function GET(request: Request) {
   if (!auth.ok) return auth.response;
 
   const { searchParams } = new URL(request.url);
-  const action = (searchParams.get("action") || "").trim();
+  const action = sanitizePostgrestFilter(searchParams.get("action") || "");
   const entityType = (searchParams.get("entityType") || "").trim();
-  const q = (searchParams.get("q") || "").trim();
-  const page = Math.max(1, Number(searchParams.get("page") || 1));
-  const pageSize = Math.min(100, Math.max(15, Number(searchParams.get("pageSize") || 30)));
+  const q = sanitizePostgrestFilter(searchParams.get("q") || "");
+  const page = parseSafeInt(searchParams.get("page"), 1, 1, 10_000);
+  const pageSize = parseSafeInt(searchParams.get("pageSize"), 30, 15, 100);
 
   const clinicId = auth.session.profile.clinic_id;
   const admin = createServiceRoleClient();

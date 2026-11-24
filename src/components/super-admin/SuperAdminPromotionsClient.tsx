@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Percent, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Percent, Pencil, Plus, Sparkles, Trash2, Upload } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { StaffPageHeader } from "@/components/shared/StaffPageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -191,6 +191,7 @@ export function SuperAdminPromotionsClient() {
         <div className="grid gap-4 md:grid-cols-2">
           {promotions.map((promo) => {
             const isExpired = promo.ends_at < todayStr;
+            const isUpcoming = promo.starts_at > todayStr;
             return (
               <Card
                 key={promo.id}
@@ -201,12 +202,14 @@ export function SuperAdminPromotionsClient() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-base font-bold text-[#0A1628]">{promo.title}</h3>
-                        {isExpired ? (
+                        {!promo.is_active ? (
+                          <Badge variant="neutral">Nofaol</Badge>
+                        ) : isExpired ? (
                           <Badge variant="warning">Muddati tugagan</Badge>
+                        ) : isUpcoming ? (
+                          <Badge variant="info">Kutilmoqda</Badge>
                         ) : (
-                          <Badge variant={promo.is_active ? "success" : "neutral"}>
-                            {promo.is_active ? "Faol" : "Nofaol"}
-                          </Badge>
+                          <Badge variant="success">Faol</Badge>
                         )}
                       </div>
                       <p className="mt-1 text-xs font-semibold text-[#0B4F8A]">
@@ -315,8 +318,49 @@ export function SuperAdminPromotionsClient() {
               </div>
             </div>
             <div>
-              <Label>Rasm manzili (URL)</Label>
-              <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+              <Label>Aksiya rasmi (URL yoki fayldan yuklash)</Label>
+              <div className="flex gap-2">
+                <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+                <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                  <Upload className="h-3.5 w-3.5" />
+                  Yuklash
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    disabled={saving}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!file) return;
+                      setSaving(true);
+                      try {
+                        const fd = new FormData();
+                        fd.append("file", file);
+                        fd.append("folder", "promotions");
+                        const res = await fetch("/api/super-admin/settings", {
+                          method: "POST",
+                          body: fd,
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          toast({
+                            variant: "error",
+                            title: data.error || "Rasmni yuklab bo'lmadi",
+                          });
+                          return;
+                        }
+                        setImageUrl(data.url);
+                        toast({ variant: "success", title: "Aksiya rasmi yuklandi" });
+                      } catch {
+                        toast({ variant: "error", title: "Rasm yuklashda xatolik" });
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
             </div>
             <div>
               <Label>Tavsif</Label>

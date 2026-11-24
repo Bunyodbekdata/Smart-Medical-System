@@ -94,6 +94,7 @@ export function AdminReportsClient() {
       "Xizmat",
       "Shifokor",
       "To'lov usuli",
+      "Holati",
       "Kassir",
       "Vaqt",
       "Summa (UZS)",
@@ -104,6 +105,7 @@ export function AdminReportsClient() {
       tr.service?.name || "",
       tr.doctor?.full_name || "",
       PAYMENT_METHOD_LABELS[tr.payment_method],
+      tr.is_confirmed ? "Tasdiqlangan" : "Tasdiqlanmagan",
       tr.accepted_by_profile?.full_name || "",
       formatDateTimeUZ(tr.paid_at),
       Number(tr.amount),
@@ -289,7 +291,7 @@ export function AdminReportsClient() {
                         <th className="px-5 py-3">Kvitansiya</th>
                         <th className="px-4 py-3">Bemor</th>
                         <th className="px-4 py-3">Xizmat / Shifokor</th>
-                        <th className="px-4 py-3">Usul</th>
+                        <th className="px-4 py-3">Usul / Holat</th>
                         <th className="px-4 py-3">Kassir</th>
                         <th className="px-4 py-3">Vaqt</th>
                         <th className="px-5 py-3 text-right">Summa</th>
@@ -306,15 +308,24 @@ export function AdminReportsClient() {
                             {tr.service?.name} • {tr.doctor?.full_name}
                           </td>
                           <td className="px-4 py-3 text-xs">
-                            {PAYMENT_METHOD_LABELS[tr.payment_method]}
+                            <span>{PAYMENT_METHOD_LABELS[tr.payment_method]}</span>
+                            {!tr.is_confirmed ? (
+                              <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                                Tasdiqlanmagan
+                              </span>
+                            ) : null}
                           </td>
                           <td className="px-4 py-3 text-xs">
                             {tr.accepted_by_profile?.full_name || "—"}
                           </td>
-                          <td className="px-4 py-3 text-xs text-slate-500">
+                          <td className="px-4 py-3 text-xs text-slate-500 tabular-nums">
                             {formatDateTimeUZ(tr.paid_at)}
                           </td>
-                          <td className="px-5 py-3 text-right font-extrabold text-emerald-700">
+                          <td
+                            className={`px-5 py-3 text-right font-extrabold tabular-nums ${
+                              tr.is_confirmed ? "text-emerald-700" : "text-amber-700"
+                            }`}
+                          >
                             {formatUZS(tr.amount)}
                           </td>
                         </tr>

@@ -31,21 +31,36 @@ export function StaffLoginForm({
   configured,
   nextPath = null,
   initialErrorCode = null,
+  hasActiveBrokenSession = false,
 }: {
   clinicName: string;
   clinicLogoUrl?: string | null;
   configured: boolean;
   nextPath?: string | null;
   initialErrorCode?: string | null;
+  hasActiveBrokenSession?: boolean;
 }) {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [signingOutBroken, setSigningOutBroken] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(
     initialErrorCode ? (ERROR_MESSAGES[initialErrorCode] ?? null) : null
   );
+
+  async function handleClearBrokenSession() {
+    setSigningOutBroken(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      setErrorMsg(null);
+      router.replace("/staff/login");
+      router.refresh();
+    } finally {
+      setSigningOutBroken(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -174,9 +189,24 @@ export function StaffLoginForm({
 
             {!configured ? (
               <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-800">
-                Supabase muhit o&apos;zgaruvchilari sozlanmagan. Iltimos,{" "}
-                <code className="font-mono">.env.local</code> faylini to&apos;ldiring va
-                xodim hisobini yarating.
+                Ma&apos;lumotlar bazasi muhit o&apos;zgaruvchilari sozlanmagan. Iltimos,{" "}
+                <code className="font-mono">.env.local</code> faylini sozlang va xodim hisobini
+                yarating.
+              </div>
+            ) : null}
+
+            {hasActiveBrokenSession ? (
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/80 px-3.5 py-2.5 text-xs text-amber-900">
+                <span>Joriy sessiyadan chiqib boshqa hisob orqali kirishingiz mumkin.</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={signingOutBroken}
+                  onClick={() => void handleClearBrokenSession()}
+                >
+                  {signingOutBroken ? "Chiqilmoqda..." : "Sessiyani yopish"}
+                </Button>
               </div>
             ) : null}
 

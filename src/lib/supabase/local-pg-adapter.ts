@@ -3,7 +3,18 @@ import fs from "node:fs";
 import path from "node:path";
 import { Pool, types } from "pg";
 import { cookies } from "next/headers";
+import {
+  LOCAL_SESSION_COOKIE,
+  createSignedSessionToken,
+  verifySignedSessionToken,
+} from "@/lib/auth/session-token";
 import { getPostgresUrl } from "./env";
+
+export {
+  LOCAL_SESSION_COOKIE,
+  createSignedSessionToken,
+  verifySignedSessionToken,
+};
 
 // Return PostgreSQL DATE (OID 1082) as exact 'YYYY-MM-DD' string without timezone drift
 types.setTypeParser(1082, (val: string) => val);
@@ -15,8 +26,6 @@ export interface PgExecutor {
   ): Promise<{ rows: T[] }>;
   exec(sql: string): Promise<unknown>;
 }
-
-export const LOCAL_SESSION_COOKIE = "medclinic_local_session";
 
 const CLINIC_ID = "11111111-1111-4111-8111-111111111111";
 const DOC_ALI_ID = "41111111-1111-4111-8111-111111111101";
@@ -175,6 +184,14 @@ const TABLE_RELATIONS: Record<string, Record<string, RelationDef>> = {
       foreignKey: "payment_id",
     },
   },
+  refunds: {
+    payment: {
+      type: "many-to-one",
+      targetTable: "payments",
+      localKey: "payment_id",
+      foreignKey: "id",
+    },
+  },
   expenses: {
     responsible_user: {
       type: "many-to-one",
@@ -253,43 +270,6 @@ function verifyPassword(password: string, storedHash: string): boolean {
   const keyBuf = Buffer.from(keyHex, "hex");
   if (derived.length !== keyBuf.length) return false;
   return crypto.timingSafeEqual(derived, keyBuf);
-}
-
-function getSigningSecret(): string {
-  return (
-    process.env.AUTH_SECRET ||
-    process.env.LOCAL_AUTH_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "medclinic-local-pg-session-key"
-  );
-}
-
-export function createSignedSessionToken(userId: string): string {
-  const exp = Date.now() + 7 * 24 * 60 * 60 * 1000;
-  const payload = `${userId}.${exp}`;
-  const sig = crypto
-    .createHmac("sha256", getSigningSecret())
-    .update(payload)
-    .digest("hex");
-  return `${payload}.${sig}`;
-}
-
-export function verifySignedSessionToken(token: string | undefined | null): string | null {
-  if (!token) return null;
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const [userId, expStr, sig] = parts;
-  const exp = Number(expStr);
-  if (!Number.isFinite(exp) || Date.now() > exp) return null;
-  const expected = crypto
-    .createHmac("sha256", getSigningSecret())
-    .update(`${userId}.${expStr}`)
-    .digest("hex");
-  if (sig.length !== expected.length) return null;
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
-    return null;
-  }
-  return userId;
 }
 
 declare global {
@@ -694,7 +674,7 @@ async function seedInitialOperationalRecords(db: PgExecutor) {
   // 8. Sample operational expense
   await db.query(
     `INSERT INTO public.expenses (clinic_id, category, title, amount, expense_date, description, responsible_user_id, created_by)
-     VALUES ($1, 'medical_supplies', 'Stomatologik sarf materiallari', 85000, public.tashkent_today(), 'Steril qo''lqoplar va stomatologik sarf materiallari', $2, $2)`,
+     VALUES ($1, 'Tibbiy sarf materiallari', 'Stomatologik sarf materiallari', 85000, public.tashkent_today(), 'Steril qo''lqoplar va stomatologik sarf materiallari', $2, $2)`,
     [CLINIC_ID, SUPER_ADMIN_USER_ID]
   );
 }
@@ -1474,24 +1454,40 @@ export function createLocalServiceRoleClient() {
     storage: {
       from(bucket: string) {
         return {
-          async upload(filePath: string, buffer: Buffer) {
+          async upload(
+            filePath: string,
+            buffer: Buffer,
+            opts?: { contentType?: string; upsert?: boolean }
+          ) {
             try {
-              const targetDir = path.join(
-                process.cwd(),
-                "public",
-                "uploads",
-                bucket,
-                path.dirname(filePath)
-              );
-              fs.mkdirSync(targetDir, { recursive: true });
-              const fullFile = path.join(
-                process.cwd(),
-                "public",
-                "uploads",
-                bucket,
-                filePath
-              );
-              fs.writeFileSync(fullFile, buffer);
+              const db = await getLocalPg();
+              await db.exec(`
+                CREATE TABLE IF NOT EXISTS public.clinic_media_files (
+                  bucket text NOT NULL,
+                  file_path text NOT NULL,
+                  content_type text NOT NULL,
+                  data_base64 text NOT NULL,
+                  created_at timestamptz NOT NULL DEFAULT now(),
+                  PRIMARY KEY (bucket, file_path)
+                );
+              `);
+              const contentType = opts?.contentType || "image/png";
+              const b64 = buffer.toString("base64");
+              if (opts?.upsert) {
+                await db.query(
+                  `INSERT INTO public.clinic_media_files (bucket, file_path, content_type, data_base64)
+                   VALUES ($1, $2, $3, $4)
+                   ON CONFLICT (bucket, file_path)
+                   DO UPDATE SET content_type = EXCLUDED.content_type, data_base64 = EXCLUDED.data_base64, created_at = now()`,
+                  [bucket, filePath, contentType, b64]
+                );
+              } else {
+                await db.query(
+                  `INSERT INTO public.clinic_media_files (bucket, file_path, content_type, data_base64)
+                   VALUES ($1, $2, $3, $4)`,
+                  [bucket, filePath, contentType, b64]
+                );
+              }
               return { data: { path: filePath }, error: null };
             } catch (err) {
               return {
@@ -1503,7 +1499,7 @@ export function createLocalServiceRoleClient() {
           getPublicUrl(filePath: string) {
             return {
               data: {
-                publicUrl: `/uploads/${bucket}/${filePath}`,
+                publicUrl: `/api/media/${bucket}/${filePath}`,
               },
             };
           },

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { recordAuditLog, requireApiRole } from "@/lib/auth/guards";
-import { normalizeUzPhone, sanitizePostgrestFilter } from "@/lib/formatters";
+import {
+  normalizeUzPhone,
+  parseSafeInt,
+  sanitizePostgrestFilter,
+} from "@/lib/formatters";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { uzPhoneSchema } from "@/lib/validators";
@@ -20,8 +24,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") || "").trim();
   const checkPhone = (searchParams.get("checkPhone") || "").trim();
-  const page = Math.max(1, Number(searchParams.get("page") || 1));
-  const pageSize = Math.min(50, Math.max(10, Number(searchParams.get("pageSize") || 20)));
+  const page = parseSafeInt(searchParams.get("page"), 1, 1, 10_000);
+  const pageSize = parseSafeInt(searchParams.get("pageSize"), 20, 10, 50);
 
   const admin = createServiceRoleClient();
   const clinicId = auth.session.profile.clinic_id;

@@ -23,8 +23,14 @@ import {
   getRoleHomeRoute,
   getSafeRedirectPath,
   normalizeUzPhone,
+  parseIsoDateOrDefault,
+  parseSafeInt,
   sanitizePostgrestFilter,
 } from "@/lib/formatters";
+import {
+  createSignedSessionToken,
+  verifySignedSessionToken,
+} from "@/lib/auth/session-token";
 import { checkRateLimit, resetRateLimit } from "@/lib/rate-limit";
 import type { CommissionRule } from "@/types/database";
 
@@ -237,5 +243,31 @@ describe("Doctor commissions, clinic finances & rate limiting", () => {
     expect(csv).toContain(`"'=HYPERLINK(""http://evil"")"`);
     expect(csv).toContain(`"Ali, ""VIP"""`);
     expect(csv).toContain(`"180000"`);
+  });
+
+  it("safely parses integer pagination and ISO dates without NaN or RangeError", () => {
+    expect(parseSafeInt("abc", 1, 1, 50)).toBe(1);
+    expect(parseSafeInt("-5", 1, 1, 50)).toBe(1);
+    expect(parseSafeInt("999", 20, 10, 50)).toBe(50);
+    expect(parseSafeInt("3", 1, 1, 50)).toBe(3);
+
+    expect(parseIsoDateOrDefault("2026-11-24", "2026-01-01")).toBe("2026-11-24");
+    expect(parseIsoDateOrDefault("2026-99-99", "2026-01-01")).toBe("2026-01-01");
+    expect(parseIsoDateOrDefault("not-a-date", "2026-01-01")).toBe("2026-01-01");
+    expect(parseIsoDateOrDefault(null, "2026-01-01")).toBe("2026-01-01");
+  });
+
+  it("signs and cryptographically verifies session tokens and rejects tampered or expired tokens", () => {
+    const userId = "90000000-0000-4000-8000-000000000001";
+    const token = createSignedSessionToken(userId);
+    expect(verifySignedSessionToken(token)).toBe(userId);
+
+    const [idPart, expPart, sigPart] = token.split(".");
+    expect(verifySignedSessionToken(`${idPart}.${expPart}.00${sigPart.slice(2)}`)).toBeNull();
+    expect(
+      verifySignedSessionToken(`90000000-0000-4000-8000-000000000099.${expPart}.${sigPart}`)
+    ).toBeNull();
+    expect(verifySignedSessionToken(`${idPart}.${Date.now() - 10_000}.${sigPart}`)).toBeNull();
+    expect(verifySignedSessionToken("")).toBeNull();
   });
 });

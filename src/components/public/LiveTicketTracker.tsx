@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowLeft,
   BellRing,
   Check,
@@ -18,6 +19,7 @@ import {
   VolumeX,
   Wifi,
   WifiOff,
+  XCircle,
 } from "lucide-react";
 import { ClinicLogo } from "@/components/shared/ClinicLogo";
 import { Button } from "@/components/ui/button";
@@ -73,6 +75,9 @@ function playCallChime() {
       osc.start(start);
       osc.stop(start + 0.6);
     });
+    window.setTimeout(() => {
+      void ctx.close().catch(() => {});
+    }, 900);
   } catch {
     // Ignore autoplay / audio context restrictions
   }
@@ -172,6 +177,8 @@ export function LiveTicketTracker({ token, initialTicket }: LiveTicketTrackerPro
   const isCalled = ticket.status === "chaqirildi";
   const isInConsultation = ticket.status === "qabulda";
   const isCompleted = ticket.status === "yakunlandi";
+  const isNoShow = ticket.status === "kelmagan";
+  const isCancelled = ticket.status === "bekor_qilindi";
   const currentStepIdx = getStepIndex(ticket.status);
   const estimatedWaitMinutes =
     ticket.status === "kutilmoqda" ? Math.max(5, Number(ticket.people_ahead || 0) * 15) : 0;
@@ -226,6 +233,30 @@ export function LiveTicketTracker({ token, initialTicket }: LiveTicketTrackerPro
               <p className="text-sm font-bold">Qabul yakunlandi</p>
               <p className="text-xs text-teal-700">
                 Tashrifingiz uchun rahmat! Sog&apos;lig&apos;ingiz doimo yaxshi bo&apos;lsin.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {isNoShow ? (
+          <div className="mb-4 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
+            <AlertTriangle className="h-6 w-6 shrink-0 text-amber-600" />
+            <div>
+              <p className="text-sm font-bold">Siz chaqirilganda qabulga kelmadingiz</p>
+              <p className="text-xs text-amber-800">
+                Navbatingizni tiklash uchun iltimos klinika qabulxonasiga murojaat qiling.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {isCancelled ? (
+          <div className="mb-4 flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-950">
+            <XCircle className="h-6 w-6 shrink-0 text-rose-600" />
+            <div>
+              <p className="text-sm font-bold">Navbat chiptasi bekor qilingan</p>
+              <p className="text-xs text-rose-700">
+                Zarurat bo&apos;lsa, bosh sahifadan yangi elektron navbat chiptasini olishingiz mumkin.
               </p>
             </div>
           </div>

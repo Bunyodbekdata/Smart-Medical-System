@@ -30,6 +30,8 @@ export function MediaImage({
   const effectiveSrc = failedSrc === src && fallbackSrc ? fallbackSrc : src;
   const isSvgOrRemote =
     effectiveSrc.endsWith(".svg") ||
+    effectiveSrc.startsWith("/api/media/") ||
+    effectiveSrc.startsWith("/uploads/") ||
     effectiveSrc.startsWith("http://") ||
     effectiveSrc.startsWith("https://") ||
     effectiveSrc.startsWith("data:");

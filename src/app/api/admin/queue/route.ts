@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { recordAuditLog, requireApiRole } from "@/lib/auth/guards";
-import { getTashkentDateString } from "@/lib/formatters";
+import { parseIsoDateOrDefault } from "@/lib/formatters";
 import { broadcastPublicQueueUpdate } from "@/lib/realtime/broadcast";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { walkInRegistrationSchema } from "@/lib/validators";
@@ -15,8 +15,14 @@ const patchQueueSchema = z.discriminatedUnion("action", [
     action: z.literal("set_priority"),
     ticketId: z.string().uuid(),
     priorityLevel: z.number().int().min(0).max(2),
-    reason: z.string().trim().min(3, "Ustuvorlik o'zgarishi sababini kiriting").max(300),
-  }),
+    reason: z.string().trim().max(300).optional().nullable(),
+  }).refine(
+    (d) => d.priorityLevel === 0 || (d.reason && d.reason.trim().length >= 3),
+    {
+      message: "Ustuvorlik o'zgarishi sababini kamida 3 ta belgi bilan kiriting",
+      path: ["reason"],
+    }
+  ),
   z.object({
     action: z.literal("transition_status"),
     ticketId: z.string().uuid(),
@@ -37,7 +43,7 @@ export async function GET(request: Request) {
   if (!auth.ok) return auth.response;
 
   const { searchParams } = new URL(request.url);
-  const date = searchParams.get("date") || getTashkentDateString();
+  const date = parseIsoDateOrDefault(searchParams.get("date"));
   const doctorId = searchParams.get("doctorId");
   const serviceId = searchParams.get("serviceId");
   const status = searchParams.get("status");
@@ -255,11 +261,13 @@ export async function PATCH(request: Request) {
     }
 
     if (parsed.data.action === "set_priority") {
+      const effectiveReason =
+        parsed.data.reason?.trim() || "Oddiy navbatga qaytarildi";
       const { data: updated, error } = await admin
         .from("queue_tickets")
         .update({
           priority_level: parsed.data.priorityLevel,
-          priority_reason: parsed.data.reason,
+          priority_reason: parsed.data.priorityLevel === 0 ? null : effectiveReason,
         })
         .eq("id", existing.id)
         .eq("clinic_id", clinicId)
@@ -279,7 +287,7 @@ export async function PATCH(request: Request) {
         summary: `Navbat ustuvorligi o'zgartirildi (${existing.ticket_number}): ${existing.priority_level} -> ${parsed.data.priorityLevel}`,
         previousValues: { priority_level: existing.priority_level },
         newValues: { priority_level: parsed.data.priorityLevel },
-        reason: parsed.data.reason,
+        reason: effectiveReason,
       });
 
       await broadcastPublicQueueUpdate({

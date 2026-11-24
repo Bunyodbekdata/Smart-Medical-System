@@ -360,6 +360,65 @@ describe("PostgreSQL schema, RPC concurrency, queue lifecycle, ledger & audit in
         [payment2Id, ADMIN_USER_ID]
       )
     ).rejects.toThrow();
+
+    // Unconfirmed payment must NOT be refundable
+    const unconfirmedPay = await db.query<{ id: string }>(
+      `SELECT * FROM public.record_ticket_payment(
+        $1::uuid, 20000, 'transfer'::public.payment_method, $2::uuid, false, NULL::text, 'Bank o''tkazmasi kutilmoqda'::text
+      )`,
+      [t2.id, ADMIN_USER_ID]
+    );
+    await expect(
+      db.query(
+        `SELECT * FROM public.record_payment_refund(
+          $1::uuid, 10000, 'transfer'::public.payment_method, 'Tasdiqlanmagan'::text, $2::uuid, $2::uuid
+        )`,
+        [unconfirmedPay.rows[0].id, ADMIN_USER_ID]
+      )
+    ).rejects.toThrow();
+
+    // Completed ticket must report people_ahead = 0 in public tracking
+    const t1TokenRes = await db.query<{ tracking_token: string }>(
+      `SELECT tracking_token::text FROM public.queue_tickets WHERE id = $1`,
+      [t1.id]
+    );
+    const completedTrackRes = await db.query<{ status: string; people_ahead: number }>(
+      `SELECT status::text, people_ahead FROM public.get_public_ticket_tracking($1::uuid)`,
+      [t1TokenRes.rows[0].tracking_token]
+    );
+    expect(completedTrackRes.rows[0].status).toBe("yakunlandi");
+    expect(Number(completedTrackRes.rows[0].people_ahead)).toBe(0);
+
+    // Off-duty doctor ('off_duty') rejects online queue booking while seed.sql remains idempotent
+    await db.query(`UPDATE public.doctors SET availability_status = 'off_duty' WHERE id = $1`, [
+      DOC_ALI_ID,
+    ]);
+    await expect(
+      db.query(
+        `SELECT * FROM public.create_queue_ticket(
+          $1::uuid, 'Test Bemor'::text, '+998901112233'::text,
+          $2::uuid, $3::uuid, 'online'::text, true,
+          NULL::text, NULL::uuid, NULL::uuid, 0, NULL::text
+        )`,
+        [CLINIC_ID, DOC_ALI_ID, SRV_STOM_ID]
+      )
+    ).rejects.toThrow();
+    await db.query(`UPDATE public.doctors SET availability_status = 'available' WHERE id = $1`, [
+      DOC_ALI_ID,
+    ]);
+
+    const seedSql = fs.readFileSync(path.resolve(process.cwd(), "supabase/seed.sql"), "utf8");
+    await db.exec(seedSql);
+    const promoCount = await db.query<{ cnt: string }>(
+      `SELECT count(*)::text AS cnt FROM public.promotions WHERE clinic_id = $1`,
+      [CLINIC_ID]
+    );
+    const commCount = await db.query<{ cnt: string }>(
+      `SELECT count(*)::text AS cnt FROM public.commission_rules WHERE clinic_id = $1`,
+      [CLINIC_ID]
+    );
+    expect(Number(promoCount.rows[0].cnt)).toBe(1);
+    expect(Number(commCount.rows[0].cnt)).toBe(1);
   });
 
   it("Test 8: audit_logs cannot be updated or deleted (immutable audit trail)", async () => {

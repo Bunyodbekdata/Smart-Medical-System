@@ -469,25 +469,48 @@ export function SuperAdminFinanceClient() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {ledger.map((item) => (
-                        <tr key={item.id}>
-                          <td className="px-4 py-2.5 text-slate-600">
-                            {formatDateDDMMYYYY(item.effective_date)}
-                          </td>
-                          <td className="px-4 py-2.5 font-semibold text-slate-900">
-                            {item.doctor?.full_name || "—"}
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <Badge variant={item.entry_type === "payout" ? "info" : "neutral"}>
-                              {EARNING_ENTRY_TYPE_LABELS[item.entry_type]}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-bold text-slate-900">
-                            {formatUZS(item.doctor_amount)}
-                          </td>
-                          <td className="px-4 py-2.5 text-slate-500">{item.notes || "—"}</td>
-                        </tr>
-                      ))}
+                      {ledger.map((item) => {
+                        const isPayout = item.entry_type === "payout";
+                        const amountNum = Number(item.doctor_amount);
+                        const isPositive = !isPayout && amountNum >= 0;
+                        return (
+                          <tr key={item.id}>
+                            <td className="px-4 py-2.5 text-slate-600 tabular-nums">
+                              {formatDateDDMMYYYY(item.effective_date)}
+                            </td>
+                            <td className="px-4 py-2.5 font-semibold text-slate-900">
+                              {item.doctor?.full_name || "—"}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Badge
+                                variant={
+                                  item.entry_type === "accrual"
+                                    ? "success"
+                                    : item.entry_type === "payout"
+                                      ? "info"
+                                      : "warning"
+                                }
+                              >
+                                {EARNING_ENTRY_TYPE_LABELS[item.entry_type]}
+                              </Badge>
+                            </td>
+                            <td
+                              className={`px-4 py-2.5 text-right font-bold tabular-nums ${
+                                isPayout
+                                  ? "text-[#0B4F8A]"
+                                  : isPositive
+                                    ? "text-emerald-700"
+                                    : "text-rose-600"
+                              }`}
+                            >
+                              {isPayout
+                                ? `-${formatUZS(Math.abs(amountNum))}`
+                                : `${isPositive ? "+" : ""}${formatUZS(amountNum)}`}
+                            </td>
+                            <td className="px-4 py-2.5 text-slate-500">{item.notes || "—"}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

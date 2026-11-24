@@ -28,8 +28,11 @@ O'zbekistondagi xususiy klinikalar va tibbiyot markazlari uchun mo'ljallangan, t
 ## 2. Texnologik stek
 
 - **Frontend**: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Lucide Icons, Recharts
-- **Backend va Ma'lumotlar bazasi**: Next.js Route Handlers, Supabase (PostgreSQL, Auth, Realtime, Storage)
-- **Validatsiya**: React Hook Form, Zod
+- **Backend va Ma'lumotlar bazasi**: Next.js Route Handlers + 3 xil ulanish rejimi:
+  1. **Neon / PostgreSQL (`DATABASE_URL`)** — bepul va serverless production muhiti uchun tavsiya etiladi
+  2. **Cloud Supabase (`NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`)** — Supabase Auth, Realtime va Storage bilan
+  3. **Ichki Local PostgreSQL 16 (`MEDCLINIC_LOCAL_PG=true`)** — lokal dasturlash va tezkor demo uchun (`@electric-sql/pglite`)
+- **Validatsiya**: Zod v4
 - **Testlash**: Vitest + `@electric-sql/pglite` (haqiqiy PostgreSQL migratsiyalari, atomar RPC funksiyalari va triggerlar ustida integratsion testlar)
 
 ---
@@ -38,18 +41,24 @@ O'zbekistondagi xususiy klinikalar va tibbiyot markazlari uchun mo'ljallangan, t
 
 ### 3.1. Muhit o'zgaruvchilari (`.env.local`)
 
-`.env.example` faylidan nusxa oling va Supabase loyihangiz kalitlarini kiriting:
+`.env.example` faylidan nusxa oling va o'zingizga qulay ma'lumotlar bazasi rejimini tanlang:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Majburiy o'zgaruvchilar:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (faqat server tomonida, hech qachon mijoz kodida ishlatilmaydi)
-- `DEFAULT_CLINIC_ID` (ixtiyoriy, birlamchi klinika UUID)
-- `NEXT_PUBLIC_APP_URL`
+1. **Variant A — Neon PostgreSQL (Production / Vercel uchun tavsiya etiladi)**:
+   - `DATABASE_URL` — Neon ulanish satri
+   - `AUTH_SECRET` — sessiya cookie'larini imzolash uchun kamida 32 belgili kalit
+   - `SUPER_ADMIN_*`, `ADMIN_*`, `DOCTOR_*` — birinchi ishga tushganda yaratiladigan xodim login/parollari
+   - Sxema va boshlang'ich ma'lumotlarni bir buyruqda yuklash: `npm run db:init`
+2. **Variant B — Cloud Supabase**:
+   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+3. **Variant C — Lokal PGlite (tashqi bazasiz tezkor ishga tushirish)**:
+   - `MEDCLINIC_LOCAL_PG=true` hamda `LOCAL_SUPER_ADMIN_*`, `LOCAL_ADMIN_*`, `LOCAL_DOCTOR_*`
+4. **Umumiy sozlamalar**:
+   - `NEXT_PUBLIC_DEFAULT_CLINIC_SLUG` (standart: `xushvaqt-medclinic`)
+   - `NEXT_PUBLIC_APP_URL`
 
 ### 3.2. Kutubxonalarni o'rnatish
 

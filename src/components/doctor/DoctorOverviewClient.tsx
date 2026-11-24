@@ -384,6 +384,18 @@ export function DoctorOverviewClient({
                       {formatUZS(currentPatient.paid_amount)} / {formatUZS(currentPatient.total_due)}
                     </span>
                   </div>
+                  {currentPatient.priority_level > 0 && (
+                    <div className="border-t border-slate-100 pt-2 text-xs text-rose-700">
+                      <span className="font-bold">Ustuvorlik (P{currentPatient.priority_level}):</span>{" "}
+                      {currentPatient.priority_reason || "Shoshilinch murojaat"}
+                    </div>
+                  )}
+                  {currentPatient.notes && (
+                    <div className="border-t border-slate-100 pt-2 text-xs text-slate-700">
+                      <span className="font-semibold text-[#0B4F8A]">Murojaat sababi:</span>{" "}
+                      {currentPatient.notes}
+                    </div>
+                  )}
                   {currentPatient.patient?.notes && (
                     <div className="border-t border-slate-100 pt-2 text-xs text-slate-600">
                       <span className="font-semibold">Bemor qaydi:</span>{" "}

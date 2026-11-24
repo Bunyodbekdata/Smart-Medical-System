@@ -86,8 +86,11 @@ export async function POST(request: Request) {
   const admin = createServiceRoleClient();
 
   try {
+    const normalizedEmail = parsed.data.email.trim().toLowerCase();
+    const normalizedUsername = parsed.data.username.trim().toLowerCase();
+
     const { data: authUser, error: authErr } = await admin.auth.admin.createUser({
-      email: parsed.data.email,
+      email: normalizedEmail,
       password: parsed.data.password,
       email_confirm: true,
       app_metadata: { clinic_id: clinicId, role: parsed.data.role },
@@ -107,8 +110,8 @@ export async function POST(request: Request) {
         clinic_id: clinicId,
         role: parsed.data.role,
         full_name: parsed.data.fullName,
-        username: parsed.data.username,
-        email: parsed.data.email,
+        username: normalizedUsername,
+        email: normalizedEmail,
         phone: parsed.data.phone ?? null,
         is_active: true,
       })
@@ -204,7 +207,7 @@ export async function PATCH(request: Request) {
       .from("user_profiles")
       .update({
         full_name: parsed.data.fullName,
-        username: parsed.data.username,
+        username: parsed.data.username.trim().toLowerCase(),
         phone: parsed.data.phone ?? null,
         role: parsed.data.role,
         is_active: parsed.data.isActive,

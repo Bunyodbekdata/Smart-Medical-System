@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 
 export function StaffPasswordCard() {
   const { toast } = useToast();
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -17,12 +18,20 @@ export function StaffPasswordCard() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!currentPassword) {
+      toast({ variant: "error", title: "Joriy parolingizni kiriting" });
+      return;
+    }
     if (newPassword.length < 8) {
-      toast({ variant: "error", title: "Parol kamida 8 ta belgidan iborat bo'lishi kerak" });
+      toast({ variant: "error", title: "Yangi parol kamida 8 ta belgidan iborat bo'lishi kerak" });
+      return;
+    }
+    if (newPassword === currentPassword) {
+      toast({ variant: "error", title: "Yangi parol joriy paroldan farq qilishi kerak" });
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast({ variant: "error", title: "Parollar mos kelmadi" });
+      toast({ variant: "error", title: "Yangi parollar mos kelmadi" });
       return;
     }
 
@@ -31,7 +40,7 @@ export function StaffPasswordCard() {
       const res = await fetch("/api/staff/password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPassword }),
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -39,8 +48,11 @@ export function StaffPasswordCard() {
         return;
       }
       toast({ variant: "success", title: "Parol muvaffaqiyatli yangilandi" });
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+    } catch {
+      toast({ variant: "error", title: "Tarmoq xatosi. Qayta urinib ko'ring." });
     } finally {
       setSaving(false);
     }
@@ -64,11 +76,24 @@ export function StaffPasswordCard() {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
+            <Label htmlFor="current-pw">Joriy parol</Label>
+            <Input
+              id="current-pw"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              className="mt-1.5"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+            />
+          </div>
+          <div>
             <Label htmlFor="new-pw">Yangi parol</Label>
             <div className="relative mt-1.5">
               <Input
                 id="new-pw"
                 type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
                 className="pr-10"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -89,6 +114,7 @@ export function StaffPasswordCard() {
             <Input
               id="confirm-pw"
               type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
               className="mt-1.5"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

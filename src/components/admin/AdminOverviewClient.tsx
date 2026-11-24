@@ -314,11 +314,11 @@ export function AdminOverviewClient({ clinicId }: AdminOverviewClientProps) {
           tone="amber"
         />
         <StaffStatCard
-          label="Qabulda / Yakunlangan"
-          value={`${counts.qabulda} / ${counts.yakunlandi}`}
-          hint="Faol qabulda va tugallangan"
-          icon={CheckCircle2}
-          tone="teal"
+          label="Hozir qabulda"
+          value={counts.qabulda}
+          hint="Shifokor ko'rigida"
+          icon={UserCheck}
+          tone="sapphire"
         />
         <StaffStatCard
           label="Bugungi sof tushum"
@@ -335,11 +335,11 @@ export function AdminOverviewClient({ clinicId }: AdminOverviewClientProps) {
           tone="rose"
         />
         <StaffStatCard
-          label="Qabulda (hozir)"
-          value={counts.qabulda}
-          hint="Shifokor ko'rigida"
-          icon={UserCheck}
-          tone="sapphire"
+          label="Yakunlangan qabullar"
+          value={counts.yakunlandi}
+          hint="Bugun tugallangan ko'riklar"
+          icon={CheckCircle2}
+          tone="teal"
         />
       </div>
 

@@ -9,7 +9,9 @@ import { POST as publicQueueRegisterPost } from "@/app/api/queue/register/route"
 import { GET as superAdminAuditGet } from "@/app/api/super-admin/audit-logs/route";
 import { GET as superAdminEmployeesGet } from "@/app/api/super-admin/employees/route";
 import { GET as superAdminFinanceGet } from "@/app/api/super-admin/finance/route";
+import { DELETE as superAdminRoomsDelete } from "@/app/api/super-admin/rooms/route";
 import { PATCH as superAdminSettingsPatch } from "@/app/api/super-admin/settings/route";
+import { POST as staffPasswordPost } from "@/app/api/staff/password/route";
 
 let mockRoleSession: StaffSession | null = null;
 
@@ -148,5 +150,43 @@ describe("Server API Route RBAC and input protection", () => {
 
     const res = await publicQueueRegisterPost(req);
     expect([400, 503]).toContain(res.status);
+  });
+
+  it("enforces RBAC on room deletion (401/403) and requires currentPassword on password change", async () => {
+    const unauthRoomDel = await superAdminRoomsDelete(
+      new Request("http://localhost/api/super-admin/rooms?id=21111111-1111-4111-8111-111111111101", {
+        method: "DELETE",
+      })
+    );
+    expect(unauthRoomDel.status).toBe(401);
+
+    mockRoleSession = buildSession("admin");
+    const adminRoomDel = await superAdminRoomsDelete(
+      new Request("http://localhost/api/super-admin/rooms?id=21111111-1111-4111-8111-111111111101", {
+        method: "DELETE",
+      })
+    );
+    expect(adminRoomDel.status).toBe(403);
+
+    const missingCurrentPwd = await staffPasswordPost(
+      new Request("http://localhost/api/staff/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: "NewStrongPassword2026!" }),
+      })
+    );
+    expect(missingCurrentPwd.status).toBe(400);
+
+    const identicalPwd = await staffPasswordPost(
+      new Request("http://localhost/api/staff/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: "SameStrongPassword2026!",
+          newPassword: "SameStrongPassword2026!",
+        }),
+      })
+    );
+    expect(identicalPwd.status).toBe(400);
   });
 });

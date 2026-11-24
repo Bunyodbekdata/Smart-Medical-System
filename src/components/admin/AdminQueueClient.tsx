@@ -404,6 +404,8 @@ export function AdminQueueClient({ clinicId }: { clinicId: string }) {
                             <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
                               <CheckCircle2 className="h-3.5 w-3.5" /> Tasdiqlangan
                             </span>
+                          ) : t.status === "bekor_qilindi" || t.status === "yakunlandi" ? (
+                            <span className="text-xs text-slate-400">—</span>
                           ) : (
                             <Button
                               size="sm"
@@ -564,13 +566,19 @@ export function AdminQueueClient({ clinicId }: { clinicId: string }) {
               </SelectInput>
             </div>
             <div>
-              <Label>Sabab (majburiy) *</Label>
+              <Label>
+                {priorityLevel > 0 ? "Sabab (majburiy) *" : "Sabab (ixtiyoriy)"}
+              </Label>
               <Input
                 className="mt-1.5"
                 value={priorityReason}
                 onChange={(e) => setPriorityReason(e.target.value)}
-                placeholder="Masalan: Homilador bemor navbatsiz qabul"
-                required
+                placeholder={
+                  priorityLevel > 0
+                    ? "Masalan: Homilador bemor navbatsiz qabul"
+                    : "Oddiy navbatga qaytarish sababi..."
+                }
+                required={priorityLevel > 0}
               />
             </div>
             <div className="flex justify-end gap-2">
